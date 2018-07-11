@@ -1,0 +1,19 @@
+name: jaguar_jwt
+description: Provides JWT utilities for Dart including issuing a token, verifing a token and parsing a token.
+version: 2.1.1
+authors:
+- Ravi Teja Gudapati <tejainece@gmail.com>
+- Kevin Segaud <segaud.kevin@gmail.com>
+homepage: https://github.com/Jaguar-dart/jaguar_jwt
+
+documentation:
+
+environment:
+  sdk: ">=2.0.0-dev.60.0 <3.0.0"
+
+dependencies:
+  auth_header: ^0.0.2
+  crypto: ^2.0.5
+
+dev_dependencies:
+  test: ^1.2.0

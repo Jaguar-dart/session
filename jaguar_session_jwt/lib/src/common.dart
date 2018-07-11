@@ -61,13 +61,10 @@ abstract class _BaseJwtSession {
         audience: config.audience,
         maxAge: config.maxAge,
         payload: values);
-    final String token = issueJwtHS256(claimSet, config.hmacKey);
-    return const Base64Codec.urlSafe().encode(token.codeUnits);
+    return issueJwtHS256(claimSet, config.hmacKey);
   }
 
-  Session decodeJwt(String data) {
-    final token =
-        new String.fromCharCodes(const Base64Codec.urlSafe().decode(data));
+  Session decodeJwt(String token) {
     final JwtClaim claimSet = verifyJwtHS256Signature(token, config.hmacKey);
     if (claimSet == null) return new Session.newSession({});
 

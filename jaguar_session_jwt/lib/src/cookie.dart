@@ -5,9 +5,8 @@ part of jaguar_auth.session;
 /// Stores all session as JWT token on a Cookie
 ///
 ///     server() async {
-///       final jaguar =
-///       new Jaguar(sessionManager: new JwtCookieSession(jwtConfig));
-///       jaguar.addApi(reflect(new LibraryApi()));
+///       final jaguar = Jaguar(sessionManager: JwtCookieSession(jwtConfig));
+///       jaguar.add(reflect(new LibraryApi()));
 ///       await jaguar.serve();
 ///     }
 class JwtCookieSession extends Object
@@ -35,13 +34,12 @@ class JwtCookieSession extends Object
   }
 
   /// Writes [response] with session details
-  Response write(Context context, Response resp) {
-    if (!context.sessionNeedsUpdate) return resp;
+  void write(Context context) {
+    if (!context.sessionNeedsUpdate) return;
 
     final Session session = context.parsedSession;
-    final cook = new Cookie(cookieName, encodeJwt(session.asMap));
+    final cook = Cookie(cookieName, encodeJwt(session.asMap));
     cook.path = '/';
-    resp.cookies.add(cook);
-    return resp;
+    context.response.cookies.add(cook);
   }
 }
