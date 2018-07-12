@@ -10,14 +10,14 @@ class _SessionDataSerializer extends Serializer<_SessionData> {
   _SessionData createModel() => new _SessionData();
 
   /// Encodes model to [Map]
-  Map toMap(_SessionData model, {bool withType: false, String typeKey}) => {
+  Map<String, dynamic> toMap(_SessionData model) => {
         "_id": ObjectId.parse(model.id),
         "data": model.data,
       };
 
   /// Decodes model from [Map]
-  _SessionData fromMap(Map map, {_SessionData model}) {
-    final _SessionData ret = super.fromMap(map, model: model);
+  _SessionData fromMap(Map map) {
+    final _SessionData ret = super.fromMap(map);
     if (map['_id'] is ObjectId) {
       ObjectId id = map['_id'];
       ret.id = id.toHexString();

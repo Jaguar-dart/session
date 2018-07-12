@@ -31,18 +31,22 @@ class JwtValidationConfig {
   const JwtValidationConfig({this.issuer, this.audience});
 }
 
-abstract class _BaseJwtSession {
-  JwtConfig get config;
+class JwtMapCoder implements MapCoder {
+  final JwtConfig config;
 
-  JwtValidationConfig get validationConfig;
+  final JwtValidationConfig validationConfig;
+
+  final String subjectKey;
+
+  JwtMapCoder(this.config,
+      {this.validationConfig: const JwtValidationConfig(),
+      this.subjectKey: 'id'});
 
   /// Validates the given JWT claim set [claimSet] against [validationConfig]
   ///
   /// Must throw exception on validation failure
-  Future<Null> validate(JwtClaim claimSet) async {
-    if (claimSet == null) {
-      throw new Response(null, statusCode: HttpStatus.UNAUTHORIZED);
-    }
+  void validate(JwtClaim claimSet) {
+    if (validationConfig == null) return;
 
     try {
       claimSet.validate(
@@ -50,26 +54,29 @@ abstract class _BaseJwtSession {
         audience: validationConfig.audience,
       );
     } on JwtException catch (_) {
-      throw new Response(null, statusCode: HttpStatus.UNAUTHORIZED);
+      throw Response(null, statusCode: HttpStatus.unauthorized);
     }
   }
 
-  String encodeJwt(Map<String, String> values) {
+  String encode(Map<String, String> values) {
     final claimSet = new JwtClaim(
         issuer: config.issuer,
-        subject: values['sub'],
+        subject: values[subjectKey],
         audience: config.audience,
         maxAge: config.maxAge,
         payload: values);
     return issueJwtHS256(claimSet, config.hmacKey);
   }
 
-  Session decodeJwt(String token) {
+  Map<String, String> decode(String token) {
     final JwtClaim claimSet = verifyJwtHS256Signature(token, config.hmacKey);
-    if (claimSet == null) return new Session.newSession({});
+    if (claimSet == null) return null;
 
-    final ret = new Map<String, dynamic>.from(claimSet.payload);
-    ret['sub'] = claimSet.subject;
-    return new Session(ret['sid'], ret, claimSet.issuedAt);
+    validate(claimSet);
+
+    final ret = Map<String, String>.from(claimSet.payload);
+    ret[subjectKey] = claimSet.subject;
+    ret['sct'] = claimSet.issuedAt.toUtc().toIso8601String();
+    return ret;
   }
 }

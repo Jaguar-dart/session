@@ -1,18 +1,13 @@
 # Changelog
 
-## 0.1.3
+## 2.1.4
 
-- Bug fix session cookie path
++ `JwtMapCoder` for other `SessionManager`s to implement JWT 
 
-## 0.1.2
+## 2.1.2
 
-- Use improvements to `Session` in Jaguar 0.6.18 to improve performance
++ Unified `JwtSession` and `JwtCookieSession`
 
-## 0.1.1
+## 2.1.1
 
-- Docs
-
-## 0.1.0
-
-- `JwtCookieSession`
-- `JwtHeaderSession`
++ Jaguar 2.1.x

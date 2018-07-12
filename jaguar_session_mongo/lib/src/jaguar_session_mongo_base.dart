@@ -8,7 +8,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:mongo_dart/mongo_dart.dart';
 import 'package:jaguar/jaguar.dart';
-import 'package:jaguar_mongo/jaguar_mongo.dart';
 import 'package:jaguar_data_store/jaguar_data_store.dart';
 import 'package:jaguar_mongo_data_store/jaguar_mongo_data_store.dart';
 import 'package:jaguar_serializer/jaguar_serializer.dart';
@@ -19,55 +18,42 @@ part 'model.dart';
 /// MongoDb based session manager that stores session identifier on Cookie
 ///
 /// Stores session data on MongoDb. Stores the session identifier on Cookie.
-class MgoCookieSession implements SessionManager {
+class MgoCookieSession extends SessionManager {
   /// Name of the cookie on which session identifier is stored
   final String cookieName;
 
   /// Duration after which the session is expired
   final Duration expiry;
 
+  final MapCoder coder;
+
   MgoCookieSession({this.cookieName = 'session', this.expiry, String hmacKey})
-      : _encrypter =
-            hmacKey != null ? new Hmac(sha256, hmacKey.codeUnits) : null;
+      : coder = MapCoder(
+            signer: hmacKey != null ? Hmac(sha256, hmacKey.codeUnits) : null);
+
+  MgoCookieSession.withCoder(this.coder,
+      {this.cookieName = 'session', this.expiry});
 
   /// Parses session from the given [request]
   Future<Session> parse(Context ctx) async {
-    final Db db = ctx.getInterceptorResult(MongoDb);
-    final MongoDataStore<_SessionData> dataStore =
-        new MongoDataStore<_SessionData>(_serializer, "session", db);
-    Map<String, String> values;
-    for (Cookie cook in ctx.req.cookies) {
-      if (cook.name == cookieName) {
-        dynamic valueMap = _decode(cook.value);
-        if (valueMap is Map<String, String>) {
-          values = valueMap;
-        }
-        break;
-      }
-    }
+    Cookie cook = ctx.cookies[cookieName];
+    if(cook == null) return Session.newSession({});
+    Map<String, String> values = coder.decode(cook.value);
 
-    if (values == null) {
-      return newSession();
-    }
+    if (values == null) return newSession();
 
-    if (values['sid'] is! String) {
-      return newSession();
-    }
+    if (values['sid'] is! String) return newSession();
 
     final String timeStr = values['sct'];
-    if (timeStr is! String) {
-      return newSession();
-    }
+    if (timeStr is! String) return newSession();
 
-    final int timeMilli = int.parse(timeStr, onError: (_) => null);
-    if (timeMilli == null) {
-      return newSession();
-    }
+    final int timeMilli = int.tryParse(timeStr);
+    if (timeMilli == null) return newSession();
 
     final time = new DateTime.fromMillisecondsSinceEpoch(timeMilli);
 
     if (expiry != null) {
-      final Duration diff = new DateTime.now().difference(time);
+      final Duration diff = DateTime.now().difference(time);
       if (diff > expiry) {
         return newSession();
       }
@@ -75,9 +61,10 @@ class MgoCookieSession implements SessionManager {
 
     final String id = values['sid'];
 
-    if (!_isValidMgoId(id)) {
-      return newSession();
-    }
+    if (!_isValidMgoId(id)) return newSession();
+
+    final Db db = ctx.getVariable<Db>();
+    final dataStore = MongoDataStore<_SessionData>(_serializer, "session", db);
 
     final _SessionData data = await dataStore.getById(id);
 
@@ -86,12 +73,11 @@ class MgoCookieSession implements SessionManager {
 
   /// Writes session data ([session]) to the Response ([resp]) and returns new
   /// response
-  Future<Response> write(Context ctx, Response resp) async {
-    if (!ctx.sessionNeedsUpdate) return resp;
+  Future<void> write(Context ctx) async {
+    if (!ctx.sessionNeedsUpdate) return;
 
-    final Db db = ctx.getInterceptorResult(MongoDb);
-    final MongoDataStore<_SessionData> dataStore =
-        new MongoDataStore<_SessionData>(_serializer, "session", db);
+    final Db db = ctx.getVariable<Db>();
+    final dataStore = MongoDataStore<_SessionData>(_serializer, "session", db);
 
     final Session session = ctx.parsedSession;
 
@@ -107,55 +93,19 @@ class MgoCookieSession implements SessionManager {
       final Map<String, String> values = session.asMap;
       values['sid'] = session.id;
       values['sct'] = session.createdTime.millisecondsSinceEpoch.toString();
-      final cook = new Cookie(cookieName, _encode(values));
+      final cook = new Cookie(cookieName, coder.encode(values));
       cook.path = '/';
-      resp.cookies.add(cook);
+      ctx.response.cookies.add(cook);
     } else {
       final Map<String, String> values = session.asMap;
       values['sid'] = '0' * 24;
-      final cook = new Cookie(cookieName, _encode(values));
-      resp.cookies.add(cook);
-    }
-
-    return resp;
-  }
-
-  String _encode(Map<String, String> values) {
-    // Base64 URL safe encoding
-    String ret = BASE64URL.encode(JSON.encode(values).codeUnits);
-    // If there is no encrypter, skip signature
-    if (_encrypter == null) return ret;
-    return ret +
-        '.' +
-        BASE64URL.encode(_encrypter.convert(ret.codeUnits).bytes);
-  }
-
-  Map<String, String> _decode(String data) {
-    if (_encrypter == null) {
-      try {
-        return JSON.decode(new String.fromCharCodes(BASE64URL.decode(data)));
-      } catch (e) {
-        return null;
-      }
-    } else {
-      List<String> parts = data.split('.');
-      if (parts.length != 2) return null;
-      try {
-        if (BASE64URL.encode(_encrypter.convert(parts.first.codeUnits).bytes) !=
-            parts[1]) return null;
-
-        return JSON
-            .decode(new String.fromCharCodes(BASE64URL.decode(parts.first)));
-      } catch (e) {
-        return null;
-      }
+      final cook = new Cookie(cookieName, coder.encode(values));
+      ctx.response.cookies.add(cook);
     }
   }
-
-  final Hmac _encrypter;
 
   static Session newSession() =>
-      new Session.newSession({}, id: new ObjectId().toHexString());
+      Session.newSession({}, id: ObjectId().toHexString());
 }
 
 final String _zeroId = '0' * 24;
