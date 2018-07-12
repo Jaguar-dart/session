@@ -9,7 +9,7 @@ import 'package:jaguar_session_jwt/jaguar_session_jwt.dart';
 
 import 'package:jaguar_example_session_models/jaguar_example_session_models.dart';
 
-/// JWT Authentication context used by [JwtSession]
+/// JWT config used by [JwtSession]
 const jwtConfig = const JwtConfig('sdgdflgujsdgndsflkgjsdlnwertwert78676',
     issuer: 'jaguar.com');
 

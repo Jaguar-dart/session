@@ -3,9 +3,7 @@
 
 library jaguar_session_mongo.src;
 
-import 'dart:io';
 import 'dart:async';
-import 'dart:convert';
 import 'package:mongo_dart/mongo_dart.dart';
 import 'package:jaguar/jaguar.dart';
 import 'package:jaguar_data_store/jaguar_data_store.dart';
@@ -19,27 +17,27 @@ part 'model.dart';
 ///
 /// Stores session data on MongoDb. Stores the session identifier on Cookie.
 class MgoCookieSession extends SessionManager {
-  /// Name of the cookie on which session identifier is stored
-  final String cookieName;
-
   /// Duration after which the session is expired
   final Duration expiry;
 
   final MapCoder coder;
 
-  MgoCookieSession({this.cookieName = 'session', this.expiry, String hmacKey})
-      : coder = MapCoder(
+  final SessionIo io;
+
+  MgoCookieSession(
+      {this.expiry, String hmacKey, this.io: const SessionIoCookie()})
+      : coder = JaguarMapCoder(
             signer: hmacKey != null ? Hmac(sha256, hmacKey.codeUnits) : null);
 
   MgoCookieSession.withCoder(this.coder,
-      {this.cookieName = 'session', this.expiry});
+      {this.expiry, this.io: const SessionIoCookie()});
 
   /// Parses session from the given [request]
   Future<Session> parse(Context ctx) async {
-    Cookie cook = ctx.cookies[cookieName];
-    if(cook == null) return Session.newSession({});
-    Map<String, String> values = coder.decode(cook.value);
+    String raw = io.read(ctx);
+    if (raw == null) return newSession();
 
+    Map<String, String> values = coder.decode(raw);
     if (values == null) return newSession();
 
     if (values['sid'] is! String) return newSession();
@@ -68,7 +66,7 @@ class MgoCookieSession extends SessionManager {
 
     final _SessionData data = await dataStore.getById(id);
 
-    return new Session(values['sid'], data.data, time);
+    return Session(values['sid'], data.data, time);
   }
 
   /// Writes session data ([session]) to the Response ([resp]) and returns new
@@ -81,27 +79,20 @@ class MgoCookieSession extends SessionManager {
 
     final Session session = ctx.parsedSession;
 
-    if (_isValidMgoId(session.id)) {
-      if (session.keys.length > 0) {
-        _SessionData data = new _SessionData();
-        data.id = session.id;
-        session.keys.forEach((k) => data.data[k] = session[k]);
-        await dataStore.upsertById(session.id, data);
-      } else {
-        await dataStore.removeById(session.id);
-      }
-      final Map<String, String> values = session.asMap;
-      values['sid'] = session.id;
-      values['sct'] = session.createdTime.millisecondsSinceEpoch.toString();
-      final cook = new Cookie(cookieName, coder.encode(values));
-      cook.path = '/';
-      ctx.response.cookies.add(cook);
+    if (session.keys.length > 0) {
+      _SessionData data = _SessionData();
+      data.id = session.id;
+      session.keys.forEach((k) => data.data[k] = session[k]);
+      await dataStore.upsertById(session.id, data);
     } else {
-      final Map<String, String> values = session.asMap;
-      values['sid'] = '0' * 24;
-      final cook = new Cookie(cookieName, coder.encode(values));
-      ctx.response.cookies.add(cook);
+      await dataStore.removeById(session.id);
     }
+
+    final Map<String, String> values = {
+      'sid': session.id,
+      'sct': session.createdTime.millisecondsSinceEpoch.toString(),
+    };
+    io.write(ctx, coder.encode(values));
   }
 
   static Session newSession() =>

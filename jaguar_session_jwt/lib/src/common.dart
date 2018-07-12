@@ -76,7 +76,7 @@ class JwtMapCoder implements MapCoder {
 
     final ret = Map<String, String>.from(claimSet.payload);
     ret[subjectKey] = claimSet.subject;
-    ret['sct'] = claimSet.issuedAt.toUtc().toIso8601String();
+    ret['sct'] = claimSet.issuedAt.toUtc().millisecondsSinceEpoch.toString();
     return ret;
   }
 }

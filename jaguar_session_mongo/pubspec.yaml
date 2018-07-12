@@ -11,17 +11,18 @@ environment:
 
 dependencies:
   mongo_dart: ^0.3.2
-  jaguar: ^2.1.20
+  jaguar: ^2.1.21
   jaguar_serializer: ^2.1.8
-  crypto: ^2.0.2
   jaguar_data_store: ^2.1.1
   jaguar_mongo_data_store: ^2.1.1
+  crypto: ^2.0.1
 
 dev_dependencies:
   test: ^1.2.0
   jaguar_auth: ^2.1.1
-  auth_header: ^0.0.2
+  jaguar_resty: ^2.5.5
   jaguar_reflect: ^2.1.1
   jaguar_mongo: ^2.1.1
   jaguar_example_session_models:
     path: ../example_models
+  http:

@@ -1,47 +1,47 @@
 # jaguar_session_jwt
 
-JWT session managers for Jaguar
+JWT session managers for Jaguar.
 
-# JWT session on Cookie
+# JwtSession
 
-JWT based session manager with Cookie as transport mechanism. This session
-manager stores all session as JWT token on a Cookie.
+JWT session manager implements `SessionManager` that stores session data in JWT format.
 
-1. `cookieName`
-Name of the Cookie on which the session data is stored.
-2. `config`
-JWT configuration used to issue a JWT token
-3. `validationConfig`
-Information required to validate a JWT token
+## Usage
 
-## Using JwtCookieSession
+Declare JwtConfig:
 
 ```dart
-server() async {
-  final jaguar =
-      new Jaguar(sessionManager: new JwtCookieSession(jwtConfig));
-  jaguar.addApi(reflect(new LibraryApi()));
-  await jaguar.serve();
+const jwtConfig = const JwtConfig('sdgdflgujsdgndsflkgjsdlnwertwert78676',
+    issuer: 'jaguar.com');
+```
+
+Set `JwtSession` as `sessionManager` in `Jaguar`'s constructor:
+
+```dart
+main() async {
+  final server = Jaguar(sessionManager: JwtSession(jwtConfig));
+  // add routes here
+  await server.serve();
 }
 ```
 
-# JWT session on authorization header
+## Configuration
 
-JWT based session manager with `authorization` header as transport mechanism.
-This session manager stores all session as JWT token on `authorization` header.
+`JwtSession` can be configured using `config` and `validationConfig` parameters.
 
-1. `config`
-JWT configuration used to issue a JWT token
-2. `validationConfig`
-Information required to validate a JWT token
+`config` takes the information required to issue, sign and decode JWT tokens. Some of the important
+parameters are:
 
-## Using JwtHeaderSession
+`issuer`: Issuer used in `iss` field of JWT
+`audience`: Audience used in `aud` field of JWT
+`maxAge`: Period for which the token is valid
+**`hmacKey`**: The key used to sign the JWT tokens. **Keep this key a secret.**
 
-```dart
-server() async {
-  final jaguar =
-      new Jaguar(port: 10000, sessionManager: new JwtHeaderSession(jwtConfig));
-  jaguar.addApi(reflect(new LibraryApi()));
-  await jaguar.serve();
-}
-```
+## Configuring transport
+
+Use `io` to configure how session data is transported. Built-in options are:
+  1. `SessionIoCookie`: Stores token in cookie
+  2. `SessionIoAuthHeader`: Stores token in authorization header
+  3. `SessionIoHeader`: Stores token in header
+
+By default, `JwtSession` uses `SessionIoAuthHeader`.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.6
+
++ `sct` field in session is now `Jaguar` compatible.
+
 ## 2.1.4
 
 + `JwtMapCoder` for other `SessionManager`s to implement JWT 

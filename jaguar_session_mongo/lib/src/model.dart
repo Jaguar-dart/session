@@ -17,13 +17,13 @@ class _SessionDataSerializer extends Serializer<_SessionData> {
 
   /// Decodes model from [Map]
   _SessionData fromMap(Map map) {
-    final _SessionData ret = super.fromMap(map);
+    final _SessionData ret = _SessionData();
     if (map['_id'] is ObjectId) {
       ObjectId id = map['_id'];
       ret.id = id.toHexString();
     }
-    if (map['data'] is Map<String, String>) {
-      ret.data = map['data'];
+    if (map['data'] is Map) {
+      ret.data = (map['data'] as Map).cast<String, String>();
     } else {
       ret.data = <String, String>{};
     }

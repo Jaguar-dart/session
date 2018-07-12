@@ -11,41 +11,39 @@ import 'package:jaguar_example_session_models/jaguar_example_session_models.dart
 
 final pool = MongoPool('mongodb://localhost:27017/example');
 
+Future<void> mongoInterceptor(Context ctx) => pool.injectInterceptor(ctx);
+
 /// This route group contains login and logout routes
 @Controller()
+@Intercept([mongoInterceptor])
 class AuthRoutes {
   @PostJson(path: '/login')
   @Intercept([FormAuth<User>()])
   User login(Context ctx) => ctx.getVariable<User>();
-
-  @Post(path: '/logout')
-  Future logout(Context ctx) async {
-    // Clear session data
-    (await ctx.session).clear();
-  }
 }
 
 @Controller(path: '/book')
-@Intercept([Authorizer<User>()])
+@Intercept([mongoInterceptor, Authorizer<User>()])
 class StudentRoutes {
   @GetJson()
   List<Book> getAllBooks(Context ctx) => books.values.toList();
 }
 
-@Controller(path: '/api')
+@Controller()
 class LibraryApi {
   @IncludeHandler()
-  final auth = new AuthRoutes();
+  final auth = AuthRoutes();
 
   @IncludeHandler()
-  final books = new StudentRoutes();
+  final books = StudentRoutes();
 }
 
-server() async {
+main() async {
   final server = Jaguar(port: 10000, sessionManager: MgoCookieSession());
+  server.userFetchers[User] = DummyUserFetcher(users);
 
   server..add(reflect(LibraryApi()));
 
-  server.userFetchers[User] = DummyUserFetcher(users);
+  server.log.onRecord.listen(print);
   await server.serve(logRequests: true);
 }

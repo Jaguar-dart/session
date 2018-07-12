@@ -18,7 +18,7 @@ part 'common.dart';
 ///
 ///     server() async {
 ///       final server = Jaguar(sessionManager: JwtSession(jwtConfig));
-///       server.add(reflect(LibraryApi()));
+///       // Add routes here
 ///       await server.serve();
 ///     }
 class JwtSession implements SessionManager {
@@ -37,7 +37,8 @@ class JwtSession implements SessionManager {
     if (raw == null) return Session.newSession({});
     Map<String, String> values = coder.decode(raw);
     if (values == null) return Session.newSession({});
-    return Session(values['sid'], values, DateTime.parse(values['sct']));
+    return Session(values['sid'], values,
+        DateTime.fromMillisecondsSinceEpoch(int.tryParse(values['sct'])));
   }
 
   /// Writes [response] with session details
