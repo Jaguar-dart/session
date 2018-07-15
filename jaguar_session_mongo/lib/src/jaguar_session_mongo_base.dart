@@ -16,7 +16,7 @@ part 'model.dart';
 /// MongoDb based session manager that stores session identifier on Cookie
 ///
 /// Stores session data on MongoDb. Stores the session identifier on Cookie.
-class MgoCookieSession extends SessionManager {
+class MgoSession extends SessionManager {
   /// Duration after which the session is expired
   final Duration expiry;
 
@@ -24,12 +24,12 @@ class MgoCookieSession extends SessionManager {
 
   final SessionIo io;
 
-  MgoCookieSession(
+  MgoSession(
       {this.expiry, String hmacKey, this.io: const SessionIoCookie()})
       : coder = JaguarMapCoder(
             signer: hmacKey != null ? Hmac(sha256, hmacKey.codeUnits) : null);
 
-  MgoCookieSession.withCoder(this.coder,
+  MgoSession.withCoder(this.coder,
       {this.expiry, this.io: const SessionIoCookie()});
 
   /// Parses session from the given [request]

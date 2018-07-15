@@ -39,7 +39,7 @@ class LibraryApi {
 }
 
 main() async {
-  final server = Jaguar(port: 10000, sessionManager: MgoCookieSession());
+  final server = Jaguar(port: 10000, sessionManager: MgoSession());
   server.userFetchers[User] = DummyUserFetcher(users);
 
   server..add(reflect(LibraryApi()));

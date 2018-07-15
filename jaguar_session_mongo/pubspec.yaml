@@ -1,13 +1,13 @@
 name: jaguar_session_mongo
 description: MongoDb based session manager for Jaguar.dart. Stores session data in a MongoDb collection.
-version: 2.1.1
+version: 2.1.2
 homepage: https://github.com/Jaguar-dart/session
 authors:
 - Ravi Teja Gudapati <tejainece@gmail.com>
 - Kevin Segaud <segaud.kevin@gmail.com>
 
 environment:
-  sdk: '>=1.20.1 <2.0.0'
+  sdk: ">=2.0.0-dev.60.0 <3.0.0"
 
 dependencies:
   mongo_dart: ^0.3.2
