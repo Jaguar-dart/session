@@ -1,6 +1,6 @@
 name: jaguar_example_session_models
 description: Models for examples demonstrating sessions and authentication using Jaguar.
-version: 2.1.1
+version: 2.1.4
 homepage: https://github.com/Jaguar-dart/session
 author: Ravi Teja Gudapati <tejainece@gmail.com>
 
