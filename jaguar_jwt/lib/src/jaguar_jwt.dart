@@ -190,7 +190,8 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey) {
       final String headerString = _decodeBase64(parts[0]);
       final map = json.decode(headerString);
       if (map is! Map) throw JwtException.invalidToken;
-      if (map['typ'] != 'JWT') throw JwtException.invalidToken;
+      if (map['typ'] != null && map['typ'] != 'JWT')
+        throw JwtException.invalidToken;
       if (map['alg'] != 'HS256') throw JwtException.hashMismatch;
     } on FormatException catch (_) {
       throw JwtException.invalidToken;
