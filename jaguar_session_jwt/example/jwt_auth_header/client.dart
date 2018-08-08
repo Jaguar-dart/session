@@ -21,7 +21,7 @@ main() async {
   List<Book> books = await get(base)
       .path('/book/all')
       .interceptBefore(jwtInterceptor.intercept)
-      .list(Book.fromMap);
+      .list(convert: Book.fromMap);
 
   print(books);
 }
