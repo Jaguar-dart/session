@@ -9,7 +9,7 @@ import 'package:jaguar_mongo/jaguar_mongo.dart';
 
 import 'package:jaguar_example_session_models/jaguar_example_session_models.dart';
 
-final pool = MongoPool('mongodb://localhost:27017/example');
+final pool = MongoPool('mongodb://localhost:27018/example');
 
 Future<void> mongoInterceptor(Context ctx) => pool.injectInterceptor(ctx);
 

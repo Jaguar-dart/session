@@ -19,6 +19,6 @@ main() async {
   List<Book> books = await get(base)
       .path('/book')
       .interceptBefore(cookieInterceptor.intercept)
-      .list(Book.fromMap);
+      .list(convert: Book.fromMap);
   print(books);
 }
