@@ -5,7 +5,7 @@ homepage: https://github.com/Jaguar-dart/session
 author: Ravi Teja Gudapati <tejainece@gmail.com>
 
 environment:
-  sdk: '>=2.0.0 <3.0.0'
+  sdk: '>=2.0.0-dev.65 <3.0.0'
 
 dependencies:
   jaguar_serializer: ^2.2.0
