@@ -11,30 +11,37 @@ import 'package:jaguar_example_session_models/jaguar_example_session_models.dart
 
 final pool = MongoPool('mongodb://localhost:27017/example');
 
-Future<void> mongoInterceptor(Context ctx) => pool.injectInterceptor(ctx);
-
 /// This route group contains login and logout routes
-@Controller()
-@Intercept([mongoInterceptor])
-class AuthRoutes {
+@GenController()
+class AuthRoutes extends Controller {
   @PostJson(path: '/login')
-  @Intercept([FormAuth<User>()])
   User login(Context ctx) => ctx.getVariable<User>();
+
+  @override
+  FutureOr<void> before(Context ctx) async {
+    await pool.call(ctx);
+    await FormAuth.authenticate<User>(ctx);
+  }
 }
 
-@Controller(path: '/book')
-@Intercept([mongoInterceptor, Authorizer<User>()])
-class StudentRoutes {
+@GenController(path: '/book')
+class StudentRoutes extends Controller {
   @GetJson()
   List<Book> getAllBooks(Context ctx) => books.values.toList();
+
+  @override
+  FutureOr<void> before(Context ctx) async {
+    await pool.call(ctx);
+    await Authorizer<User>().call(ctx);
+  }
 }
 
-@Controller()
-class LibraryApi {
-  @IncludeHandler()
+@GenController()
+class LibraryApi extends Controller {
+  @IncludeController()
   final auth = AuthRoutes();
 
-  @IncludeHandler()
+  @IncludeController()
   final books = StudentRoutes();
 }
 

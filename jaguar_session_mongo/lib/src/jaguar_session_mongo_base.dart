@@ -24,8 +24,7 @@ class MgoSession extends SessionManager {
 
   final SessionIo io;
 
-  MgoSession(
-      {this.expiry, String hmacKey, this.io: const SessionIoCookie()})
+  MgoSession({this.expiry, String hmacKey, this.io: const SessionIoCookie()})
       : coder = JaguarMapCoder(
             signer: hmacKey != null ? Hmac(sha256, hmacKey.codeUnits) : null);
 

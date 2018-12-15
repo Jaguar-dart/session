@@ -13,12 +13,13 @@ main() async {
 
   await post(base)
       .path('/login')
-      .interceptBefore(cookieInterceptor.intercept)
-      .urlEncodedForm({'username': 'teja', 'password': 'word'}).go(
-          (_) => print("Login successful!"));
+      .before(cookieInterceptor)
+      .urlEncodedForm({'username': 'teja', 'password': 'word'})
+      .go()
+      .then((_) => print("Login successful!"));
   List<Book> books = await get(base)
       .path('/book')
-      .interceptBefore(cookieInterceptor.intercept)
+      .before(cookieInterceptor)
       .list(convert: Book.fromMap);
   print(books);
 }
