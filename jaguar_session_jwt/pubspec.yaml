@@ -1,6 +1,6 @@
 name: jaguar_session_jwt
 description: JWT session managers for Jaguar to build stateless cross-server sessions based on JWT standard.
-version: 2.2.1
+version: 2.4.1
 authors:
 - Ravi Teja Gudapati <tejainece@gmail.com>
 - Kevin Segaud <segaud.kevin@gmail.com>
@@ -12,7 +12,7 @@ environment:
   sdk: ">=2.0.0-dev.65 <3.0.0"
 
 dependencies:
-  jaguar: ^2.2.4
+  jaguar: ^2.4.0
   jaguar_jwt: ^2.1.5
 
 dev_dependencies:
@@ -21,6 +21,6 @@ dev_dependencies:
     path: ../example_models
   http: ^0.11.3
   jaguar_resty: ^2.6.2
-  jaguar_auth: ^2.1.12
+  jaguar_auth: ^2.4.1
   jaguar_common: ^2.1.4
-  jaguar_reflect: ^2.2.0
+  jaguar_reflect: ^2.4.1

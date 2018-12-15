@@ -13,14 +13,14 @@ main() async {
 
   await post(base)
       .path('/login')
-      .interceptBefore(jwtInterceptor.intercept)
+      .before(jwtInterceptor)
       .urlEncodedForm({'username': 'teja', 'password': 'word'})
       .go()
       .onSuccess((_) => print("Login successful!"));
 
   List<Book> books = await get(base)
       .path('/book/all')
-      .interceptBefore(jwtInterceptor.intercept)
+      .before(jwtInterceptor)
       .list(convert: Book.fromMap);
 
   print(books);

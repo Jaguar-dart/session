@@ -13,13 +13,13 @@ main() async {
 
   await post(base)
       .path('/login/jaguar/awesome')
-      .interceptBefore(cookieJar.intercept)
+      .before(cookieJar)
       .go()
       .onSuccess((_) => print("Login successful!"));
 
   List<Book> books = await get(base)
       .path('/book/all')
-      .interceptBefore(cookieJar.intercept)
+      .before(cookieJar)
       .list(convert: Book.fromMap);
   print(books);
 }

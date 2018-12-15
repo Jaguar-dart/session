@@ -11,8 +11,8 @@ import '../../../example_models/lib/src/models.dart';
 import '../../../example_models/lib/src/user_fetcher.dart';
 
 /// This route group contains login and logout authentication routes
-@Controller()
-class AuthRoutes {
+@GenController()
+class AuthRoutes extends Controller {
   @Post(path: '/login/:username/:pwd')
   Future<String> login(Context ctx) async {
     String username = ctx.pathParams['username'];
@@ -39,8 +39,8 @@ class AuthRoutes {
 }
 
 /// Collection of routes that need authorization
-@Controller(path: '/book')
-class StudentRoutes {
+@GenController(path: '/book')
+class StudentRoutes extends Controller {
   @GetJson(path: '/all')
   Future<List<Book>> getAllBooks(Context ctx) async {
     final Session session = await ctx.session;
@@ -54,12 +54,12 @@ class StudentRoutes {
   }
 }
 
-@Controller()
-class LibraryApi {
-  @IncludeHandler()
+@GenController()
+class LibraryApi extends Controller {
+  @IncludeController()
   final auth = new AuthRoutes();
 
-  @IncludeHandler()
+  @IncludeController()
   final student = new StudentRoutes();
 }
 

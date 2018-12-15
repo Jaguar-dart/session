@@ -14,9 +14,9 @@ const jwtConfig = const JwtConfig('sdgdflgujsdgndsflkgjsdlnwertwert78676',
     issuer: 'jaguar.com');
 
 /// This route group contains login and logout authentication routes
-@Controller()
+@GenController()
 //You must provide an instance of SessionManager through sessionManager parameter
-class AuthRoutes {
+class AuthRoutes extends Controller {
   @PostJson(path: '/login')
   Future<Map> login(Context ctx) async {
     final User user = await FormAuth.authenticate<User>(ctx);
@@ -30,8 +30,8 @@ class AuthRoutes {
 }
 
 /// Collection of routes that need authorization
-@Controller(path: '/book')
-class StudentRoutes {
+@GenController(path: '/book')
+class StudentRoutes extends Controller {
   @GetJson(path: '/all')
   Future<List<Book>> getAll(Context ctx) async {
     await Authorizer.authorize<User>(ctx);
@@ -39,12 +39,12 @@ class StudentRoutes {
   }
 }
 
-@Controller()
-class LibraryApi {
-  @IncludeHandler()
+@GenController()
+class LibraryApi extends Controller {
+  @IncludeController()
   final auth = AuthRoutes();
 
-  @IncludeHandler()
+  @IncludeController()
   final student = StudentRoutes();
 }
 
