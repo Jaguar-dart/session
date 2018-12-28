@@ -35,8 +35,12 @@ class JwtSession implements SessionManager {
   Future<Session> parse(Context context) async {
     String raw = io.read(context);
     if (raw == null) return Session.newSession({});
-    Map<String, String> values = coder.decode(raw);
-    if (values == null) return Session.newSession({});
+    Map<String, String> values;
+    try {
+      values = coder.decode(raw);
+    } catch (e) {
+      return Session.newSession({});
+    }
     return Session(values['sid'], values,
         DateTime.fromMillisecondsSinceEpoch(int.tryParse(values['sct'])));
   }

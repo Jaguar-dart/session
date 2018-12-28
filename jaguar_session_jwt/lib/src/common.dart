@@ -70,7 +70,6 @@ class JwtMapCoder implements MapCoder {
 
   Map<String, String> decode(String token) {
     final JwtClaim claimSet = verifyJwtHS256Signature(token, config.hmacKey);
-    if (claimSet == null) return null;
 
     validate(claimSet);
 
