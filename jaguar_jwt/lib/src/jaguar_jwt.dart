@@ -61,13 +61,16 @@ class JwtException {
 ///     print(decClaimSet.toJson());
 class JwtClaim {
   /// Subject to which the token is issued
+  ///
+  /// Fills the `sub` claim in the JWT token.
   final String subject;
 
   /// Issuer of the token. Is optional.
   ///
   /// Authority issuing the token. This will be used during authorization to verify
   /// that expected issuer has issued the token.
-  /// Fills the `iss` field of the JWT token.
+  ///
+  /// Fills the `iss` claim in the JWT token.
   final String issuer;
 
   /// List of audience that accept this token.
@@ -77,30 +80,39 @@ class JwtClaim {
   final List<String> audience;
 
   /// When the token was issued
+  ///
+  /// Fills the `iat` claim in the JWT token.
   final DateTime issuedAt;
 
-  /// When the token becomes valid (optional: null if not set)
+  /// When the token becomes valid. Is optional.
+  ///
+  /// Fills the `nbf` claim in the JWT token.
   final DateTime notBefore;
 
   /// Time at which the token expires
-  /// Fills `exp` field in JWT token
+  ///
+  /// Fills `exp` claim in the JWT token.
   final DateTime expiry;
 
   /// Unique Id of this JWT token
+  ///
+  /// Fills the `jti` claim in the JWT token.
   final String jwtId;
 
   /// Extra payload
+  ///
+  /// Fills the claim with the name [payloadName] in the JWT token.
   final Map<String, dynamic> payload = new Map<String, dynamic>();
 
   /// Default name of the extra payload
   static const String defaultPayloadName = 'pld';
 
-  /// Name for the extra payload
+  /// Name for the extra payload claim in the JWT token
   final String payloadName;
 
   /// Builds claim set from individual fields
   ///
-  /// The [payload] is optional. The default name of the payload member can
+  /// The [payload] is optional. The default name of the payload claim can
   /// be overridden by providing a [payloadName].
   ///
   /// Note: the Issued At and Expiry time claims are always populated.
@@ -129,7 +141,7 @@ class JwtClaim {
   /// Builds claim set from [Map]
   ///
   /// The [payloadName] is used as the extra payload's name. It is used as the
-  /// key for obtaining the payload from [data], as well as the member name
+  /// key for obtaining the payload from [data], as well as the claim name
   /// in the claim set that is produced.
   ///
   /// If not provided, it defaults to [defaultPayloadName].
@@ -274,7 +286,7 @@ String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
 
 /// Verifies that JWT token is has correct signature.
 ///
-/// The payload in the claim set is taken from the JSON member whose name is
+/// The payload in the claim set is taken from the claim whose name is
 /// 'pld'. This can be changed by providing a different name for [payloadName].
 ///
 /// Returns the decoded claim set.

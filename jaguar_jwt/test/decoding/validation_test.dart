@@ -1,49 +1,257 @@
 library test.validation;
 
+import 'dart:convert';
+
 import 'package:test/test.dart';
 import 'package:jaguar_jwt/jaguar_jwt.dart';
 
+/// Decoding of unpadded Base64 strings into octets.
+/// See Appendix C of RFC7517.
+
+List<int> rawDecodeUnpaddedBase64(String str) {
+  String output = str.replaceAll('-', '+').replaceAll('_', '/');
+
+  // TODO: fix encoder to strip out padding
+  // then uncomment the line below.
+  // expect(output.contains('='), isFalse, reason: 'unexpected padding in base64');
+
+  switch (output.length % 4) {
+    case 0:
+      break;
+    case 2:
+      output += '==';
+      break;
+    case 3:
+      output += '=';
+      break;
+    default:
+      throw 'Illegal base64url string!"';
+  }
+
+  return base64Decode(output);
+}
+
+// Decoding of unpadded Base64 strings into UTF-8 strings.
+
+String decodeUnpaddedBase64(String str) {
+  return utf8.decode(rawDecodeUnpaddedBase64(str));
+}
+
 main() {
   group('Validation', () {
-    test('No error', () {
+    //----------------------------------------------------------------
+
+    group('Signature', () {
       final claimSet = new JwtClaim(
           subject: 'kleak',
-          issuer: 'hello.com',
-          audience: <String>['example.com', 'hello.com'],
-          payload: {'k': 'v'});
+          issuer: 'issuer.example.com',
+          audience: <String>['audience.example.com'],
+          payload: {'foo': 'bar'});
 
-      claimSet.validate();
-      claimSet.validate(issuer: 'hello.com');
-      claimSet.validate(audience: 'hello.com');
+      final correctSecret = 'secret';
+      final wrongSecret = 'Secret'; // wrong case for first character
+      String token = issueJwtHS256(claimSet, correctSecret);
+
+      test('correct secret: verifies', () {
+        expect(verifyJwtHS256Signature(token, correctSecret),
+            const TypeMatcher<JwtClaim>());
+      });
+
+      test('wrong secret: fail', () {
+        // Verifying with a different secret
+        expect(() => verifyJwtHS256Signature(token, wrongSecret),
+            throwsA(equals(JwtException.hashMismatch)));
+      });
+
+      test('tampered header: fail', () {
+        // Tamper with the header so its checksum does not match the signature
+
+        final List<String> parts = token.split(".");
+        assert(parts.length == 3);
+
+        const goodHeader = '{"alg":"HS256","typ":"JWT"}'; // control value
+
+        // Note: verifyJwtHS256Signature checks the header values before
+        // checking the signature, so bad values in the header should produce
+        // other exceptions before [JwtException.hashMismatch].
+
+        <String, JwtException>{
+          // Different alg
+          '{"typ":"JWT"}': JwtException.hashMismatch, // algorithm missing
+          '{"alg":"none","typ":"JWT"}': JwtException.hashMismatch, // not HS256
+
+          // Different typ
+          '{"alg":"HS256"}': JwtException.hashMismatch, // typ missing
+          '{"alg":"HS256","typ":"badValue"}': JwtException.invalidToken,
+          '{"alg":"HS256","typ":"jwt"}': JwtException.invalidToken, // case diff
+          '{"alg":"HS256","typ":"Jwt"}': JwtException.invalidToken, // case diff
+          '{"alg":"HS256","typ":"JWt"}': JwtException.invalidToken, // case diff
+          // TODO: In RFC 7519, "JWT" is only RECOMMENDED. Other values are OK.
+
+          // Semantically same JSON, but the hash is different
+          '{"typ":"JWT","alg":"HS256"}': JwtException.hashMismatch,
+          '{"alg":"HS256","typ":"JWT" }': JwtException.hashMismatch,
+          '{"alg":"HS256","typ":"JWT","a":"b"}': JwtException.hashMismatch,
+
+          goodHeader: null // control
+        }.forEach((header, expectedException) {
+          final newHead = base64UrlEncode(header.codeUnits);
+          final tamperedToken = [newHead, parts[1], parts[2]].join('.');
+
+          if (expectedException != null) {
+            expect(() => verifyJwtHS256Signature(tamperedToken, correctSecret),
+                throwsA(equals(expectedException)),
+                reason: 'test failure (header=$header)');
+          } else {
+            // Control: check the tampering code did not mess up something else
+            // and the above testing were succeeding because of a different
+            // cause than the one being tested.
+            try {
+              expect(tamperedToken, equals(token));
+
+              expect(verifyJwtHS256Signature(tamperedToken, correctSecret),
+                  const TypeMatcher<JwtClaim>(),
+                  reason: 'control case failed (header=$header)');
+            } catch (e) {
+              fail('control case failed (header=$header): threw: $e');
+            }
+          }
+        });
+      });
+
+      test('tampered body: fail', () {
+        // Tamper with the body so its checksum does not match the signature
+
+        final List<String> parts = token.split(".");
+        assert(parts.length == 3);
+
+        final body = decodeUnpaddedBase64(parts[1]);
+        final t = body.replaceAll('"pld":{"foo":"bar"}', '"pld":{"foo":"baz"}');
+        expect(t != body, isTrue);
+
+        final tamperedEncoding = base64UrlEncode(t.codeUnits);
+        expect(tamperedEncoding != parts[1], isTrue);
+
+        final tamperedToken = [parts[0], tamperedEncoding, parts[2]].join('.');
+        expect(tamperedToken != token, isTrue); // above tampering did not work
+
+        expect(() => verifyJwtHS256Signature(tamperedToken, correctSecret),
+            throwsA(equals(JwtException.hashMismatch)),
+            reason: 'signature valid even though body was tampered with');
+      });
+
+      test('tampered signature: fail', () {
+        // Tamper with the signature
+
+        final List<String> parts = token.split(".");
+        assert(parts.length == 3);
+
+        // Try tampering with different bits in the signature
+
+        for (var x = 0; x < 3; x++) {
+          final rawSig = rawDecodeUnpaddedBase64(parts[2]);
+          switch (x) {
+            case 0:
+              rawSig[0] ^= 0x80; // flip MSB of first byte
+              break;
+            case 1:
+              rawSig[rawSig.length - 1] ^= 0x01; // flip LSB of last byte
+              break;
+            case 2:
+              rawSig[8] ^= 0x18; // flip some other bits in the signature
+              break;
+            default:
+              assert(false);
+              break;
+          }
+
+          final tamperedSig = base64UrlEncode(rawSig);
+          expect(tamperedSig != parts[2], isTrue); // tampering did not change
+
+          final tamperedToken = [parts[0], parts[1], tamperedSig].join('.');
+
+          expect(() => verifyJwtHS256Signature(tamperedToken, correctSecret),
+              throwsA(equals(JwtException.hashMismatch)),
+              reason:
+                  'signature valid even though signature was tampered with');
+        }
+      });
+
+      test('Signature.WithoutPadding', () {
+        // Original hard coded test
+        String token =
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIyIiwiYWNjb3VudElkIjoiYWNjb3VudDIifQ.FEqp-uESgVJn064zwiLFUlKlOKKN1eUkFmrJtu4HOWg";
+        String secret = "localdev";
+        verifyJwtHS256Signature(token, secret);
+      });
     });
 
-    test('Incorrect.Issuer', () {
-      final claimSet = new JwtClaim(
-          subject: 'kleak',
-          issuer: 'hello.com',
-          audience: <String>['example.com', 'hello.com'],
-          payload: {'k': 'v'});
+    //----------------------------------------------------------------
 
-      expect(() => claimSet.validate(issuer: 'whatever.com'),
-          throwsA(equals(JwtException.incorrectIssuer)));
+    group('Issuer', () {
+      final correctIssuer = 'issuer.example.com';
+
+      final claimSetIssuer0 = new JwtClaim();
+      final claimSetIssuer1 = new JwtClaim(issuer: correctIssuer);
+
+      test('issuer does not matter: valid', () {
+        claimSetIssuer0.validate(); // no issuer parameter
+        claimSetIssuer1.validate(); // no issuer parameter
+      });
+
+      test('issuer matches: valid', () {
+        claimSetIssuer1.validate(issuer: correctIssuer);
+      });
+
+      test('issuer mismatch: invalid', () {
+        final wrongIssuer = 'wrong-isser.example.com';
+
+        expect(() => claimSetIssuer0.validate(issuer: wrongIssuer),
+            throwsA(equals(JwtException.incorrectIssuer)));
+
+        expect(() => claimSetIssuer1.validate(issuer: wrongIssuer),
+            throwsA(equals(JwtException.incorrectIssuer)));
+      });
     });
 
-    test('Incorrect.Audience', () {
-      final claimSet = new JwtClaim(
-          subject: 'kleak',
-          issuer: 'hello.com',
-          audience: <String>['example.com', 'hello.com'],
-          payload: {'k': 'v'});
+    //----------------------------------------------------------------
 
-      expect(() => claimSet.validate(audience: 'whatever.com'),
-          throwsA(equals(JwtException.audienceNotAllowed)));
-    });
+    group('Audience', () {
+      final audience1 = 'audience1.example.com';
+      final audience2 = 'audience2.example.com';
+      final audience3 = 'audience3.example.com';
 
-    test(('Signature.WithoutPadding'), () {
-      String token =
-          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIyIiwiYWNjb3VudElkIjoiYWNjb3VudDIifQ.FEqp-uESgVJn064zwiLFUlKlOKKN1eUkFmrJtu4HOWg";
-      String secret = "localdev";
-      verifyJwtHS256Signature(token, secret);
+      final claimSetAudience0 = new JwtClaim();
+      final claimSetAudience1 = new JwtClaim(audience: <String>[audience1]);
+      final claimSetAudienceN =
+          new JwtClaim(audience: <String>[audience1, audience2, audience3]);
+
+      test('audience does not matter: valid', () {
+        claimSetAudience0.validate(); // no audience parameter
+        claimSetAudience1.validate(); // no audience parameter
+        claimSetAudienceN.validate(); // no audience parameter
+      });
+
+      test('audience found: valid', () {
+        claimSetAudience1.validate(audience: audience1);
+
+        claimSetAudienceN.validate(audience: audience1);
+        claimSetAudienceN.validate(audience: audience2);
+        claimSetAudienceN.validate(audience: audience3);
+      });
+
+      test('audience not found: invalid', () {
+        final missingAudience = 'missing-audience.example.com';
+
+        expect(() => claimSetAudience0.validate(audience: missingAudience),
+            throwsA(equals(JwtException.audienceNotAllowed)));
+
+        expect(() => claimSetAudience1.validate(audience: missingAudience),
+            throwsA(equals(JwtException.audienceNotAllowed)));
+
+        expect(() => claimSetAudienceN.validate(audience: missingAudience),
+            throwsA(equals(JwtException.audienceNotAllowed)));
+      });
     });
 
     //----------------------------------------------------------------
