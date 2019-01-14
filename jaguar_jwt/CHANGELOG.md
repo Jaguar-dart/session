@@ -4,6 +4,7 @@
 
 + Added support for optional Not Before (`nbf`) time claims.
 + Fixed validation to reject token when current time equals the Expiry time.
++ Added support for custom payload name.
 
 ## 2.1.2
 

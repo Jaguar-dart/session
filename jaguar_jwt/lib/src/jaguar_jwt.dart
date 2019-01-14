@@ -92,7 +92,16 @@ class JwtClaim {
   /// Extra payload
   final Map<String, dynamic> payload = new Map<String, dynamic>();
 
+  /// Default name of the extra payload
+  static const String defaultPayloadName = 'pld';
+
+  /// Name for the extra payload
+  final String payloadName;
+
   /// Builds claim set from individual fields
+  ///
+  /// The [payload] is optional. The default name of the payload member can
+  /// be overridden by providing a [payloadName].
   ///
   /// Note: the Issued At and Expiry time claims are always populated.
   /// If [issuedAt] is not specified, the current time is used.
@@ -107,6 +116,7 @@ class JwtClaim {
       DateTime issuedAt,
       DateTime notBefore,
       this.jwtId,
+      this.payloadName = defaultPayloadName,
       Map<String, dynamic> payload})
       : issuedAt = issuedAt?.toUtc() ?? new DateTime.now().toUtc(),
         notBefore = notBefore?.toUtc(),
@@ -117,7 +127,14 @@ class JwtClaim {
   }
 
   /// Builds claim set from [Map]
-  factory JwtClaim.fromMap(Map data) {
+  ///
+  /// The [payloadName] is used as the extra payload's name. It is used as the
+  /// key for obtaining the payload from [data], as well as the member name
+  /// in the claim set that is produced.
+  ///
+  /// If not provided, it defaults to [defaultPayloadName].
+  factory JwtClaim.fromMap(Map data,
+      {String payloadName = defaultPayloadName}) {
     final DateTime exp = data["exp"] is int
         ? new DateTime.fromMillisecondsSinceEpoch(data["exp"] * 1000,
             isUtc: true)
@@ -136,7 +153,8 @@ class JwtClaim {
       audience: (data["aud"] as List)?.cast<String>(),
       issuedAt: issuedAt,
       notBefore: notBefore,
-      payload: data["pld"],
+      payloadName: payloadName,
+      payload: data[payloadName],
       jwtId: data["jti"],
       expiry: exp,
     );
@@ -154,7 +172,7 @@ class JwtClaim {
     if (issuer is String) body['iss'] = issuer;
     if (subject is String) body['sub'] = subject;
     if (audience.length != 0) body['aud'] = audience;
-    if (payload.length != 0) body['pld'] = _splayify(payload);
+    if (payload.length != 0) body[payloadName] = _splayify(payload);
     if (jwtId is String) body['jti'] = jwtId;
     if (notBefore != null) {
       body['nbf'] = notBefore.millisecondsSinceEpoch ~/ 1000;
@@ -163,29 +181,18 @@ class JwtClaim {
     return _splayify(body);
   }
 
-  /// Validates the JWT claim set.
-  ///
-  /// Returns if the claim set is valid.
-  ///
-  /// Throws an exception if the claim set is not valid.
+  /// Validates the JWT claim set against provided [issuer] and [audience]
+  /// Also checks that the claim set hasn't expired
   ///
   /// The time claims in the token (i.e. Expiry, Not Before and Issued At) are
-  /// always validated against the current time, when they are present in the
-  /// token.
-  ///
-  /// The time this method is invoked is used as the current time, unless a
-  /// value for [currentTime] is provided. A specific current time is useful
-  /// for validating tokens that were previously received/saved/created and
-  /// in testing.
+  /// checked with the current time.
+  /// A value for [currentTime] can be provided (this is useful for validating
+  /// tokens previously received/saved/created), otherwise the current time of
+  /// when this method is invoked is used.
   ///
   /// An [allowedClockSkew] can be provided to allow for differences between
-  /// the clock of the system that created the token and the clock that the
-  /// current time was obtained from. By default, no clock skew is allowed for.
-  ///
-  /// If provided, the [issuer] must match the issuer in the claim set.
-  ///
-  /// If provided, the [audience] must be one of the values in the in the
-  /// audience in the claim set.
+  /// the clock of the system that created the token and the clock of the system
+  /// doing the validation. By default, no clock skew is allowed for.
 
   void validate(
       {String issuer,
@@ -208,9 +215,9 @@ class JwtClaim {
     //
     // This implementation only checks a time claim if it is present in the
     // token (they are all optional according to RFC 7519).
-    // However, issuedAt and Expires is actually always present, since the
-    // JwtClaim constructor always ensures they are always populated (even when
-    // it is created from an encoded token that didn't have them).
+    // Note: the current constructor always ensures the issuedAt and Expires
+    // time claims are always populated (even when it is created from an encoded
+    // token that didn't have them).
 
     final cTime = (currentTime ?? new DateTime.now()).toUtc();
 
@@ -265,11 +272,17 @@ String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
   return data + "." + base64UrlEncode(signature);
 }
 
-/// Verifies that JWT token is has correct signature. Returns the decoded payload
+/// Verifies that JWT token is has correct signature.
+///
+/// The payload in the claim set is taken from the JSON member whose name is
+/// 'pld'. This can be changed by providing a different name for [payloadName].
+///
+/// Returns the decoded claim set.
 ///
 ///     final JwtClaim decClaimSet = verifyJwtHS256Signature(token, key);
 ///     print(decClaimSet.toJson());
-JwtClaim verifyJwtHS256Signature(String token, String hmacKey) {
+JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
+    {String payloadName = JwtClaim.defaultPayloadName}) {
   final hmac = new Hmac(sha256, hmacKey.codeUnits);
   final List<String> parts = token.split(".");
 
@@ -301,7 +314,7 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey) {
     final map = json.decode(payloadString);
     if (map is! Map) throw JwtException.invalidToken;
 
-    return new JwtClaim.fromMap(map);
+    return new JwtClaim.fromMap(map, payloadName: payloadName);
   } on FormatException catch (_) {
     throw JwtException.invalidToken;
   }

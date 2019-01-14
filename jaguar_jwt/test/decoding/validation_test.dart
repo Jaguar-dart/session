@@ -52,12 +52,12 @@ main() {
       // Validation of time claims
 
       // Values for testing sensible time claims:
-      // - notBefore can be any time, so using time the tests are run
+      // - notBefore can be any time, so using the time when tests are run
       // - issuedAt is 30 seconds before notBefore
       // - expiry is 60 seconds after notBefore
 
-      // TODO final notBefore = new DateTime.now();
-      final notBefore = new DateTime(2018, 12, 31, 17, 0, 0);
+      //final notBefore = new DateTime(2018, 12, 31, 23, 59, 59);
+      final notBefore = new DateTime.now();
       final issuedAt = notBefore.subtract(const Duration(seconds: 30));
       final expiry = notBefore.add(const Duration(seconds: 60));
 
