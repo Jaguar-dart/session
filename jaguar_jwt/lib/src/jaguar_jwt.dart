@@ -24,9 +24,17 @@ class JwtException {
   static const JwtException hashMismatch =
       const JwtException('JWT hash mismatch!');
 
-  /// Token has expired
+  /// Token Expired time reached exception
   static const JwtException tokenExpired =
       const JwtException('JWT token expired!');
+
+  /// Token Not Before time not yet reached exception
+  static const JwtException tokenNotYetAccepted =
+      const JwtException('JWT token not yet accepted!');
+
+  /// Token Issued At time not yet reached exception
+  static const JwtException tokenNotYetIssued =
+      const JwtException('JWT token not yet issued!');
 
   /// Unallowed audience
   static const JwtException audienceNotAllowed =
@@ -71,6 +79,9 @@ class JwtClaim {
   /// When the token was issued
   final DateTime issuedAt;
 
+  /// When the token becomes valid (optional: null if not set)
+  final DateTime notBefore;
+
   /// Time at which the token expires
   /// Fills `exp` field in JWT token
   final DateTime expiry;
@@ -82,6 +93,11 @@ class JwtClaim {
   final Map<String, dynamic> payload = new Map<String, dynamic>();
 
   /// Builds claim set from individual fields
+  ///
+  /// Note: the Issued At and Expiry time claims are always populated.
+  /// If [issuedAt] is not specified, the current time is used.
+  /// If [expiry] is not specified, [maxAge] after the issuedAt time is used.
+  /// If [notBefore] is not specified, is is not included in the claim.
   JwtClaim(
       {this.subject,
       this.issuer,
@@ -89,9 +105,11 @@ class JwtClaim {
       Duration maxAge: const Duration(days: 1),
       List<String> audience,
       DateTime issuedAt,
+      DateTime notBefore,
       this.jwtId,
       Map<String, dynamic> payload})
       : issuedAt = issuedAt?.toUtc() ?? new DateTime.now().toUtc(),
+        notBefore = notBefore?.toUtc(),
         expiry = expiry?.toUtc() ??
             (issuedAt?.toUtc() ?? new DateTime.now().toUtc()).add(maxAge),
         audience = audience ?? [] {
@@ -104,6 +122,10 @@ class JwtClaim {
         ? new DateTime.fromMillisecondsSinceEpoch(data["exp"] * 1000,
             isUtc: true)
         : null;
+    final DateTime notBefore = data["nbf"] is int
+        ? new DateTime.fromMillisecondsSinceEpoch(data["nbf"] * 1000,
+            isUtc: true)
+        : null;
     final DateTime issuedAt = data["iat"] is int
         ? new DateTime.fromMillisecondsSinceEpoch(data["iat"] * 1000,
             isUtc: true)
@@ -113,6 +135,7 @@ class JwtClaim {
       issuer: data['iss'],
       audience: (data["aud"] as List)?.cast<String>(),
       issuedAt: issuedAt,
+      notBefore: notBefore,
       payload: data["pld"],
       jwtId: data["jti"],
       expiry: exp,
@@ -133,16 +156,83 @@ class JwtClaim {
     if (audience.length != 0) body['aud'] = audience;
     if (payload.length != 0) body['pld'] = _splayify(payload);
     if (jwtId is String) body['jti'] = jwtId;
+    if (notBefore != null) {
+      body['nbf'] = notBefore.millisecondsSinceEpoch ~/ 1000;
+    }
 
     return _splayify(body);
   }
 
-  /// Validates the JWT claim set against provided [issuer] and [audience]
-  /// Also checks that the claim set hasn't expired
-  void validate({String issuer, String audience}) {
+  /// Validates the JWT claim set.
+  ///
+  /// Returns if the claim set is valid.
+  ///
+  /// Throws an exception if the claim set is not valid.
+  ///
+  /// The time claims in the token (i.e. Expiry, Not Before and Issued At) are
+  /// always validated against the current time, when they are present in the
+  /// token.
+  ///
+  /// The time this method is invoked is used as the current time, unless a
+  /// value for [currentTime] is provided. A specific current time is useful
+  /// for validating tokens that were previously received/saved/created and
+  /// in testing.
+  ///
+  /// An [allowedClockSkew] can be provided to allow for differences between
+  /// the clock of the system that created the token and the clock that the
+  /// current time was obtained from. By default, no clock skew is allowed for.
+  ///
+  /// If provided, the [issuer] must match the issuer in the claim set.
+  ///
+  /// If provided, the [audience] must be one of the values in the in the
+  /// audience in the claim set.
+
+  void validate(
+      {String issuer,
+      String audience,
+      Duration allowedClockSkew: const Duration(),
+      DateTime currentTime}) {
+    // Ensure clock skew is never negative
+
+    allowedClockSkew = allowedClockSkew.abs();
+
+    // Validate time claims are consistent
+
+    if (expiry != null && notBefore != null && !expiry.isAfter(notBefore))
+      throw JwtException.invalidToken;
+
+    if (expiry != null && issuedAt != null && !expiry.isAfter(issuedAt))
+      throw JwtException.invalidToken;
+
+    // Validate time claims against the current time
+    //
+    // This implementation only checks a time claim if it is present in the
+    // token (they are all optional according to RFC 7519).
+    // However, issuedAt and Expires is actually always present, since the
+    // JwtClaim constructor always ensures they are always populated (even when
+    // it is created from an encoded token that didn't have them).
+
+    final cTime = (currentTime ?? new DateTime.now()).toUtc();
+
+    // Check Issued At
+    // RFC7519 does not describe if or how the Issued At time claim is checked.
+    // This implementation rejects the token if the current time is before token
+    // was issued.
+    if (issuedAt != null && cTime.isBefore(issuedAt.subtract(allowedClockSkew)))
+      throw JwtException.tokenNotYetIssued;
+
+    // Check Not Before
+    // Reject token if the current time is before the Not Before time.
+    if (notBefore != null &&
+        notBefore.subtract(allowedClockSkew).isAfter(cTime))
+      throw JwtException.tokenNotYetAccepted;
+
     // Check expiry
-    if (expiry.isBefore(new DateTime.now().toUtc()))
+    // Reject the token if the current time is at or after the Expiry time.
+    if (expiry != null && !cTime.isBefore(expiry.add(allowedClockSkew)))
       throw JwtException.tokenExpired;
+
+    // Validate other claims
 
     // Check audience
     if (audience is String && !this.audience.contains(audience))
