@@ -1,5 +1,7 @@
-// Copyright (c) 2016, Ravi Teja Gudapati. All rights reserved. Use of this source code
-// is governed by a BSD-style license that can be found in the LICENSE file.
+// Copyright (c) 2016, 2019, Ravi Teja Gudapati. All rights reserved.
+//
+// Use of this source code is governed by a BSD-style license that can be found
+// in the LICENSE file.
 
 library jaguar_jwt.src;
 
@@ -263,7 +265,10 @@ class JwtClaim {
   }
 }
 
-/// Issues a HS256 based JWT token from given claim set
+/// Issues a HMAC SHA-256 signed JWT.
+///
+/// Creates a JWT using the [claimSet] for the payload and signing it using
+/// the [hmacKey] with the HMAC SHA-256 algorithm.
 ///
 ///     final claimSet = new JwtClaim(
 ///       subject: 'kleak',
@@ -272,19 +277,24 @@ class JwtClaim {
 ///       payload: {'k': 'v'});
 ///       String token = issueJwtHS256(claimSet, key);
 ///       print(token);
+
 String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
   final hmac = new Hmac(sha256, hmacKey.codeUnits);
   final SplayTreeMap<String, String> header =
       new SplayTreeMap.from({"alg": "HS256", "typ": "JWT"});
-  final String headerString = base64UrlEncode(json.encode(header).codeUnits);
-  final String payloadString =
-      base64UrlEncode(json.encode(claimSet.toJson()).codeUnits);
-  final String data = headerString + "." + payloadString;
-  final List<int> signature = hmac.convert(data.codeUnits).bytes;
-  return data + "." + base64UrlEncode(signature);
+
+  final encHdr = B64urlEncRFC7515.encode(json.encode(header).codeUnits);
+  final encPld =
+      B64urlEncRFC7515.encode(json.encode(claimSet.toJson()).codeUnits);
+
+  final data = encHdr + '.' + encPld;
+
+  final encSig = B64urlEncRFC7515.encode(hmac.convert(data.codeUnits).bytes);
+
+  return data + '.' + encSig;
 }
 
-/// Verifies that JWT token is has correct signature.
+/// Verifies that signature and extracts the claim set from a JWT.
 ///
 /// The payload in the claim set is taken from the claim whose name is
 /// 'pld'. This can be changed by providing a different name for [payloadName].
@@ -293,41 +303,53 @@ String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
 ///
 ///     final JwtClaim decClaimSet = verifyJwtHS256Signature(token, key);
 ///     print(decClaimSet.toJson());
+
 JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
     {String payloadName = JwtClaim.defaultPayloadName}) {
-  final hmac = new Hmac(sha256, hmacKey.codeUnits);
-  final List<String> parts = token.split(".");
-
-  if (parts.length != 3) throw JwtException.invalidToken;
-
-  {
-    try {
-      final String headerString = _decodeBase64(parts[0]);
-      final map = json.decode(headerString);
-      if (map is! Map) throw JwtException.invalidToken;
-      if (map['typ'] != null && map['typ'] != 'JWT')
-        throw JwtException.invalidToken;
-      if (map['alg'] != 'HS256') throw JwtException.hashMismatch;
-    } on FormatException catch (_) {
-      throw JwtException.invalidToken;
-    }
-  }
-
-  final String payloadString = _decodeBase64(parts[1]);
-  final String data = parts[0] + "." + parts[1];
-  String signature = base64UrlEncode(hmac.convert(data.codeUnits).bytes);
-
-  if (signature != parts[2]) {
-    signature = signature.substring(0, signature.indexOf('='));
-    if (signature != parts[2]) throw JwtException.hashMismatch;
-  }
-
   try {
-    final map = json.decode(payloadString);
-    if (map is! Map) throw JwtException.invalidToken;
+    final hmac = new Hmac(sha256, hmacKey.codeUnits);
+    final List<String> parts = token.split(".");
 
-    return new JwtClaim.fromMap(map, payloadName: payloadName);
-  } on FormatException catch (_) {
+    if (parts.length != 3) throw JwtException.invalidToken;
+
+    // Decode header and payload
+
+    final headerString = B64urlEncRFC7515.decodeUtf8(parts[0]);
+    final payloadString = B64urlEncRFC7515.decodeUtf8(parts[1]);
+
+    // Verify header
+
+    final header = json.decode(headerString);
+    if (header is! Map)
+      throw JwtException.invalidToken; // is JSON, but not a JSON object
+
+    if (header['typ'] != null && header['typ'] != 'JWT')
+      throw JwtException.invalidToken;
+
+    if (header['alg'] != 'HS256')
+      throw JwtException.hashMismatch; // wrong algorithm
+
+    // Verify signature: calculate signature and compare to token's signature
+
+    final data = parts[0] + '.' + parts[1];
+    final calcSig = B64urlEncRFC7515.encode(hmac.convert(data.codeUnits).bytes);
+
+    if (calcSig != parts[2]) {
+      throw JwtException.hashMismatch; // signature does not match calculated
+    }
+
+    // Convert payload into a claim set
+
+    final payload = json.decode(payloadString);
+    if (payload is! Map)
+      throw JwtException.invalidToken; // is JSON, but not a JSON object
+
+    return new JwtClaim.fromMap(payload, payloadName: payloadName);
+  } on FormatException {
+    // Can be caused by:
+    //   - header or payload parts are not Base64url Encoding
+    //   - bytes in the header or payload are not proper UTF-8
+    //   - string in header or payload cannot be parsed into JSON
     throw JwtException.invalidToken;
   }
 }
@@ -349,23 +371,87 @@ _splay(value) {
     return value;
 }
 
-/// Calls [base64Decode], but also works for strings with lengths
-/// that are *not* multiples of 4.
-String _decodeBase64(String str) {
-  String output = str.replaceAll('-', '+').replaceAll('_', '/');
+//================================================================
+/// Implements "Base64url Encoding" as defined RFC 7515.
+///
+/// Note: the [base64Url] constant from _dart:convert_ implements "base64url"
+/// from RFC 4648, which is NOT THE SAME as "Base64url Encoding" as defined by
+/// RFC 7515.
+///
+/// Essentially, _Base64url Encoding_ is "base64url" without the padding
+/// <https://tools.ietf.org/html/rfc7515#appendix-C>.
 
-  switch (output.length % 4) {
-    case 0:
-      break;
-    case 2:
-      output += '==';
-      break;
-    case 3:
-      output += '=';
-      break;
-    default:
-      throw 'Illegal base64url string!"';
+class B64urlEncRFC7515 {
+  /// Encode bytes using _Base64url Encoding_.
+
+  static String encode(List<int> octets) {
+    final e = base64Url.encode(octets).replaceAll('=', ''); // padding removed
+
+    assert(!e.contains('+')); // check it is using the URL safe alphabet
+    assert(!e.contains('/')); // check it is using the URL safe alphabet
+
+    return e;
   }
 
-  return utf8.decode(base64Decode(output));
+  /// Decodes a _Base64url Encoding_ string value into bytes.
+  ///
+  /// Throws [FormatException] if [str] is not valid Base64url Encoding.
+
+  static List<int> decode(String encoded) {
+    // Detect incorrect "base64url" or normal "base64" encoding
+
+    if (encoded.contains('=')) {
+      throw FormatException; // unexpected padding character
+    }
+    if (encoded.contains('+') || encoded.contains('/')) {
+      throw FormatException; // unexpected character not filename safe
+    }
+
+    // Add padding, if necessary
+
+    var output = encoded;
+    switch (output.length % 4) {
+      case 0:
+        break;
+      case 2:
+        output += '==';
+        break;
+      case 3:
+        output += '=';
+        break;
+      default:
+        throw FormatException; // bad length for a Base64url Encoding
+    }
+
+    // Decode
+
+    return base64Url.decode(output); // this may throw FormatException
+
+    /* Alternative implementation
+    var output = encoded.replaceAll('-', '+').replaceAll('_', '/');
+    (add padding here)
+    return base64Decode(output); // this may throw FormatException
+    */
+  }
+
+  /// Encodes a String into a _Base64url Encoding_ value.
+  ///
+  /// The [str] is encoded using UTF-8, and then those bytes are encoded using
+  /// Base64url Encoding.
+
+  static String encodeUtf8(String str) {
+    return encode(utf8.encode(str));
+  }
+
+  /// Decodes a _Base64url Encoding_ value into a String.
+  ///
+  /// The [str] is decoded as a _Base64url Encoding_, and then those bytes
+  /// are interpreted as a UTF-8 encoded string.
+  ///
+  /// Throws [FormatException] if it is not Base64url Encoding or does not
+  /// contain a UTF-8 encoded string.
+
+  static String decodeUtf8(String encoded) {
+    return utf8.decode(decode(encoded));
+  }
 }

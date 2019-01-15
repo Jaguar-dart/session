@@ -1,45 +1,11 @@
 library test.validation;
 
-import 'dart:convert';
-
 import 'package:test/test.dart';
 import 'package:jaguar_jwt/jaguar_jwt.dart';
 
-/// Decoding of unpadded Base64 strings into octets.
-/// See Appendix C of RFC7517.
-
-List<int> rawDecodeUnpaddedBase64(String str) {
-  String output = str.replaceAll('-', '+').replaceAll('_', '/');
-
-  // TODO: fix encoder to strip out padding
-  // then uncomment the line below.
-  // expect(output.contains('='), isFalse, reason: 'unexpected padding in base64');
-
-  switch (output.length % 4) {
-    case 0:
-      break;
-    case 2:
-      output += '==';
-      break;
-    case 3:
-      output += '=';
-      break;
-    default:
-      throw 'Illegal base64url string!"';
-  }
-
-  return base64Decode(output);
-}
-
-// Decoding of unpadded Base64 strings into UTF-8 strings.
-
-String decodeUnpaddedBase64(String str) {
-  return utf8.decode(rawDecodeUnpaddedBase64(str));
-}
-
 main() {
   group('Validation', () {
-    //----------------------------------------------------------------
+    //================================================================
 
     group('Signature', () {
       final claimSet = new JwtClaim(
@@ -71,9 +37,18 @@ main() {
 
         const goodHeader = '{"alg":"HS256","typ":"JWT"}'; // control value
 
+        // Make sure the generated JWT has the expected header, otherwise
+        // tampering with the header might not produce the desired results.
+        // Probably the only way the header could differ is that order of the
+        // members is different (i.e. `{"typ":"JWT","alg":"HS256"}`) since
+        // order is not significant in a JSON object.
+        assert(B64urlEncRFC7515.decodeUtf8(parts[0]) == goodHeader,
+            'assumption about generated JWT header is wrong');
+
         // Note: verifyJwtHS256Signature checks the header values before
         // checking the signature, so bad values in the header should produce
-        // other exceptions before [JwtException.hashMismatch].
+        // other exceptions before the signature verification fails
+        // (i.e. can have other exceptions besides [JwtException.hashMismatch]).
 
         <String, JwtException>{
           // Different alg
@@ -95,13 +70,13 @@ main() {
 
           goodHeader: null // control
         }.forEach((header, expectedException) {
-          final newHead = base64UrlEncode(header.codeUnits);
+          final newHead = B64urlEncRFC7515.encodeUtf8(header);
           final tamperedToken = [newHead, parts[1], parts[2]].join('.');
 
           if (expectedException != null) {
             expect(() => verifyJwtHS256Signature(tamperedToken, correctSecret),
                 throwsA(equals(expectedException)),
-                reason: 'test failure (header=$header)');
+                reason: 'test failed with header=$header');
           } else {
             // Control: check the tampering code did not mess up something else
             // and the above testing were succeeding because of a different
@@ -111,7 +86,7 @@ main() {
 
               expect(verifyJwtHS256Signature(tamperedToken, correctSecret),
                   const TypeMatcher<JwtClaim>(),
-                  reason: 'control case failed (header=$header)');
+                  reason: 'control case failed with header=$header');
             } catch (e) {
               fail('control case failed (header=$header): threw: $e');
             }
@@ -119,26 +94,32 @@ main() {
         });
       });
 
+      //----------------------------------------------------------------
+
       test('tampered body: fail', () {
         // Tamper with the body so its checksum does not match the signature
 
         final List<String> parts = token.split(".");
         assert(parts.length == 3);
 
-        final body = decodeUnpaddedBase64(parts[1]);
+        final body = B64urlEncRFC7515.decodeUtf8(parts[1]);
         final t = body.replaceAll('"pld":{"foo":"bar"}', '"pld":{"foo":"baz"}');
-        expect(t != body, isTrue);
+        expect(t != body, isTrue, reason: 'expected substring not in payload');
 
-        final tamperedEncoding = base64UrlEncode(t.codeUnits);
-        expect(tamperedEncoding != parts[1], isTrue);
+        final tamperedEncoding = B64urlEncRFC7515.encodeUtf8(t);
+        expect(tamperedEncoding, isNot(equals(parts[1])),
+            reason: 'tampering did not modify the encoded payload');
 
         final tamperedToken = [parts[0], tamperedEncoding, parts[2]].join('.');
-        expect(tamperedToken != token, isTrue); // above tampering did not work
+        expect(tamperedToken, isNot(equals(token)),
+            reason: 'tampering did not modify the JWT');
 
         expect(() => verifyJwtHS256Signature(tamperedToken, correctSecret),
             throwsA(equals(JwtException.hashMismatch)),
-            reason: 'signature valid even though body was tampered with');
+            reason: 'unexpected result when body was tampered with');
       });
+
+      //----------------------------------------------------------------
 
       test('tampered signature: fail', () {
         // Tamper with the signature
@@ -149,23 +130,23 @@ main() {
         // Try tampering with different bits in the signature
 
         for (var x = 0; x < 3; x++) {
-          final rawSig = rawDecodeUnpaddedBase64(parts[2]);
+          final sigBytes = B64urlEncRFC7515.decode(parts[2]);
           switch (x) {
             case 0:
-              rawSig[0] ^= 0x80; // flip MSB of first byte
+              sigBytes[0] ^= 0x80; // flip MSB of first byte
               break;
             case 1:
-              rawSig[rawSig.length - 1] ^= 0x01; // flip LSB of last byte
+              sigBytes[sigBytes.length - 1] ^= 0x01; // flip LSB of last byte
               break;
             case 2:
-              rawSig[8] ^= 0x18; // flip some other bits in the signature
+              sigBytes[8] ^= 0x18; // flip some other bits in the signature
               break;
             default:
               assert(false);
               break;
           }
 
-          final tamperedSig = base64UrlEncode(rawSig);
+          final tamperedSig = B64urlEncRFC7515.encode(sigBytes);
           expect(tamperedSig != parts[2], isTrue); // tampering did not change
 
           final tamperedToken = [parts[0], parts[1], tamperedSig].join('.');
@@ -177,16 +158,9 @@ main() {
         }
       });
 
-      test('Signature.WithoutPadding', () {
-        // Original hard coded test
-        String token =
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIyIiwiYWNjb3VudElkIjoiYWNjb3VudDIifQ.FEqp-uESgVJn064zwiLFUlKlOKKN1eUkFmrJtu4HOWg";
-        String secret = "localdev";
-        verifyJwtHS256Signature(token, secret);
-      });
     });
 
-    //----------------------------------------------------------------
+    //================================================================
 
     group('Issuer', () {
       final correctIssuer = 'issuer.example.com';
@@ -214,7 +188,7 @@ main() {
       });
     });
 
-    //----------------------------------------------------------------
+    //================================================================
 
     group('Audience', () {
       final audience1 = 'audience1.example.com';
@@ -254,7 +228,7 @@ main() {
       });
     });
 
-    //----------------------------------------------------------------
+    //================================================================
 
     group('Time claims', () {
       // Validation of time claims
