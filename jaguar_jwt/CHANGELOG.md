@@ -8,6 +8,7 @@
 + Fixed generation of JWT to use correct Base64url Encoding.
 + Added general support for non-registered claims.
 + Tidy up for static analysis and Dart linter.
++ Implemented toString method for JwtClaim.
 
 ## 2.1.2
 

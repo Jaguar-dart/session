@@ -36,7 +36,7 @@ void receiverProcessesJwt(String token) {
   try {
     // Verify the signature in the JWT and extract its claim set
     final decClaimSet = verifyJwtHS256Signature(token, sharedSecret);
-    print(decClaimSet.toJson());
+    print('JwtClaim: $decClaimSet\n');
 
     // Validate the claim set
 
@@ -45,16 +45,16 @@ void receiverProcessesJwt(String token) {
     // Use values from claim set
 
     if (decClaimSet.subject != null) {
-      print('JWT_ID: "${decClaimSet.jwtId}"');
+      print('JWT ID: "${decClaimSet.jwtId}"');
     }
     if (decClaimSet.jwtId != null) {
-      print('subject: "${decClaimSet.subject}"');
+      print('Subject: "${decClaimSet.subject}"');
     }
     if (decClaimSet.issuedAt != null) {
-      print('iat: ${decClaimSet.issuedAt}');
+      print('Issued At: ${decClaimSet.issuedAt}');
     }
     if (decClaimSet.containsKey('typ')) {
-      dynamic v = decClaimSet['typ'];
+      final dynamic v = decClaimSet['typ'];
       if (v is String) {
         print('typ: "$v"');
       } else {

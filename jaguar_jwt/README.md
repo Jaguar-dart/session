@@ -41,7 +41,7 @@ To process a JWT:
 ```dart
   try {
     final JwtClaim decClaimSet = verifyJwtHS256Signature(token, key);
-    // print(decClaimSet.toJson());
+    // print(decClaimSet);
 
     decClaimSet.validate(issuer: 'teja', audience: 'audience1.example.com');
 

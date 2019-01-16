@@ -82,8 +82,8 @@ class JwtException {
 /// release. It is deprecated. New code should handle the 'pld' claim as any
 /// other non-registered claim.
 ///
-/// ```
 /// Issue token from [JwtClaim]:
+/// ```dart
 ///     final claimSet = new JwtClaim(
 ///       subject: 'kleak',
 ///       issuer: 'teja',
@@ -92,10 +92,12 @@ class JwtException {
 ///
 ///     final token = issueJwtHS256(claimSet, key);
 ///     print(token);
+/// ```
 ///
 /// Parse [JwtClaim] from token:
+/// ```dart
 ///     final decClaimSet = verifyJwtHS256Signature(token, key);
-///     print(decClaimSet.toJson());
+///     print(decClaimSet);
 /// ```
 
 class JwtClaim {
@@ -605,6 +607,21 @@ class JwtClaim {
     // not IssuedAt.
 
     // No checks for JWT ID Claim: the application is supposed to do that
+  }
+
+  //----------------------------------------------------------------
+  /// Converts a JwtClaim into a multi-line String for display.
+
+  @override
+  String toString() {
+    final buf = StringBuffer('{\n');
+
+    for (var claimName in claimNames(includeRegisteredClaims: true)) {
+      buf..write('  $claimName: ')..write(this[claimName])..write('\n');
+    }
+    buf.write('}');
+
+    return buf.toString();
   }
 
   //================================================================
