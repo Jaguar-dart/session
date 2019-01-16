@@ -9,7 +9,9 @@ import 'dart:collection';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 
-/// Jwt exception
+//================================================================
+/// JWT exception
+
 class JwtException {
   /// Exception message
   final String message;
@@ -47,7 +49,29 @@ class JwtException {
       const JwtException('Incorrect issuer!');
 }
 
+//================================================================
 /// Model for JwtToken
+///
+/// A JwtClaim represents a set of claims.
+///
+/// Claims are identified by a Claim Name. This implementation classifies
+/// claims into two types: registered claims are those which correspond to the
+/// seven _Registered Claim Names_ defined in section 4.1 of RFC 7519
+/// <https://tools.ietf.org/html/rfc7519#section-4.1>; and non-registered claims
+/// are all other claims.
+///
+/// Registered claims have their own member variable (e.g. [issuer] and [aud]).
+/// Non-registered claims are accessed through the list access operator
+/// (e.g. `claimSet['foo']`).
+///
+/// Note: a JwtClaim should be considered immutable. The claims are initialized
+/// when it is created. The behaviour is undefined if a program tries to modify
+/// the value of any claim (which is only possible for some cases, since most of
+/// the members are final).
+///
+/// The `payload` getter is provided for backward compatibility with an earlier
+/// release. It is deprecated. New code should handle the 'pld' claim as any
+/// other non-registered claim.
 ///
 /// Issue token from [JwtClaim]:
 ///     final claimSet = new JwtClaim(
@@ -61,148 +85,430 @@ class JwtException {
 /// Parse [JwtClaim] from token:
 ///     final JwtClaim decClaimSet = verifyJwtHS256Signature(token, key);
 ///     print(decClaimSet.toJson());
-class JwtClaim {
-  /// Subject to which the token is issued
-  ///
-  /// Fills the `sub` claim in the JWT token.
-  final String subject;
 
-  /// Issuer of the token. Is optional.
+class JwtClaim {
+  /// Claim Names for all the Registered Claim Names.
   ///
-  /// Authority issuing the token. This will be used during authorization to verify
-  /// that expected issuer has issued the token.
+  /// See section 4.1 of RFC 7519 for their definition
+  /// <https://tools.ietf.org/html/rfc7519#section-4.1>.
+
+  static const registeredClaimNames = const [
+    'iss',
+    'sub',
+    'aud',
+    'exp',
+    'nbf',
+    'iat',
+    'jti'
+  ];
+
+  // Note: when writing code, try to follow this order (which is from RFC 7519).
+
+  /// Default duration between issued time and expiry time.
   ///
-  /// Fills the `iss` claim in the JWT token.
+  /// Used to generate a value for Expiry when creating a claim set and no
+  /// explicit value for Expiry is provided (and the generation of a default
+  /// value has not been disabled).
+  static const _defaultMaxAge = const Duration(days: 1);
+
+  /// Claim Name for the legacy payload claim.
+  static const String _legacyPayloadClaimName = 'pld';
+
+  /// Issuer claim
+  ///
+  /// If this claim does not exist, the value is null.
+  ///
+  /// The claim name for this claim is 'iss'.
   final String issuer;
 
-  /// List of audience that accept this token.
+  /// Subject claim
   ///
-  /// This will be used during authorization to verify that JWT token has expected
-  /// audience for the service.
+  /// If this claim does not exist, the value is null.
+  ///
+  /// The claim name for this claim is 'sub'.
+  final String subject;
+
+  /// Audience claim
+  ///
+  /// If this claim does not exist, the value is an empty list.
+  ///
+  /// The claim name for this claim is 'aud'.
   final List<String> audience;
 
-  /// When the token was issued
+  /// Expiration Time claim
   ///
-  /// Fills the `iat` claim in the JWT token.
-  final DateTime issuedAt;
-
-  /// When the token becomes valid. Is optional.
+  /// If this claim does not exist, the value is null.
   ///
-  /// Fills the `nbf` claim in the JWT token.
-  final DateTime notBefore;
-
-  /// Time at which the token expires
-  ///
-  /// Fills `exp` claim in the JWT token.
+  /// The claim name for this claim is 'exp'.
   final DateTime expiry;
 
-  /// Unique Id of this JWT token
+  /// Not Before claim
   ///
-  /// Fills the `jti` claim in the JWT token.
+  /// If this claim does not exist, the value is null.
+  ///
+  /// The claim name for this claim is 'nbf'.
+  final DateTime notBefore;
+
+  /// Issued At claim
+  ///
+  /// If this claim does not exist, the value is null.
+  ///
+  /// The claim name for this claim is 'iat'.
+  final DateTime issuedAt;
+
+  /// JWT ID claim
+  ///
+  /// If this claim does not exist, the value is null.
+  ///
+  /// The claim name for this claim is 'jti'.
   final String jwtId;
 
-  /// Extra payload
+  /// All non-registered claims.
   ///
-  /// Fills the claim with the name [payloadName] in the JWT token.
-  final Map<String, dynamic> payload = new Map<String, dynamic>();
+  /// This is a Map where the key is the Claim Name and the value is the claim's
+  /// value. The value can be anything that can be converted into JSON.
+  /// For example, a scalar value (e.g. null, int or String), a List or Map.
+  final _otherClaims = <String, dynamic>{};
 
-  /// Default name of the extra payload
-  static const String defaultPayloadName = 'pld';
-
-  /// Name for the extra payload claim in the JWT token
-  final String payloadName;
-
-  /// Builds claim set from individual fields
+  /// Indicates if a claim exists or not.
   ///
-  /// The [payload] is optional. The default name of the payload claim can
-  /// be overridden by providing a [payloadName].
-  ///
-  /// Note: the Issued At and Expiry time claims are always populated.
-  /// If [issuedAt] is not specified, the current time is used.
-  /// If [expiry] is not specified, [maxAge] after the issuedAt time is used.
-  /// If [notBefore] is not specified, is is not included in the claim.
-  JwtClaim(
-      {this.subject,
-      this.issuer,
-      DateTime expiry,
-      Duration maxAge: const Duration(days: 1),
-      List<String> audience,
-      DateTime issuedAt,
-      DateTime notBefore,
-      this.jwtId,
-      this.payloadName = defaultPayloadName,
-      Map<String, dynamic> payload})
-      : issuedAt = issuedAt?.toUtc() ?? new DateTime.now().toUtc(),
-        notBefore = notBefore?.toUtc(),
-        expiry = expiry?.toUtc() ??
-            (issuedAt?.toUtc() ?? new DateTime.now().toUtc()).add(maxAge),
-        audience = audience ?? [] {
-    if (payload is Map) this.payload.addAll(payload);
+  /// The [claimName] can be the Claim Name of a registered claim or a
+  /// non-registered claim.
+
+  bool containsKey(String claimName) {
+    if (!registeredClaimNames.contains(claimName)) {
+      // Non-registered claim
+      return _otherClaims.containsKey(claimName);
+    } else {
+      // Registered claim
+      switch (claimName) {
+        case 'iss':
+          return issuer != null;
+        case 'sub':
+          return subject != null;
+        case 'aud':
+          return audience.isNotEmpty;
+        case 'exp':
+          return expiry != null;
+        case 'nbf':
+          return notBefore != null;
+        case 'iat':
+          return issuedAt != null;
+        case 'jti':
+          return jwtId != null;
+        default:
+          // coding error: all the registered claims should have been covered
+          throw new UnsupportedError('bad non-registered claim: $claimName');
+      }
+    }
   }
 
-  /// Builds claim set from [Map]
+  /// Retrieves the value of a claim.
   ///
-  /// The [payloadName] is used as the extra payload's name. It is used as the
-  /// key for obtaining the payload from [data], as well as the claim name
-  /// in the claim set that is produced.
+  /// Pass in the Claim Name in [claimName].
   ///
-  /// If not provided, it defaults to [defaultPayloadName].
-  factory JwtClaim.fromMap(Map data,
-      {String payloadName = defaultPayloadName}) {
-    final DateTime exp = data["exp"] is int
-        ? new DateTime.fromMillisecondsSinceEpoch(data["exp"] * 1000,
-            isUtc: true)
-        : null;
-    final DateTime notBefore = data["nbf"] is int
-        ? new DateTime.fromMillisecondsSinceEpoch(data["nbf"] * 1000,
-            isUtc: true)
-        : null;
-    final DateTime issuedAt = data["iat"] is int
-        ? new DateTime.fromMillisecondsSinceEpoch(data["iat"] * 1000,
-            isUtc: true)
-        : null;
-    return new JwtClaim(
-      subject: data['sub'],
-      issuer: data['iss'],
-      audience: (data["aud"] as List)?.cast<String>(),
-      issuedAt: issuedAt,
-      notBefore: notBefore,
-      payloadName: payloadName,
-      payload: data[payloadName],
-      jwtId: data["jti"],
-      expiry: exp,
-    );
+  /// This method works for both registered claims and non-registered claims.
+  /// For registered claims, use the corresponding member variables to retrieve
+  /// their values in a type-safe manner.
+  ///
+  /// Returns null if the claim is not present.
+  ///
+  /// The value of a non-registered claim may be `null`. To distinguish between
+  /// the absence of a claim and the presence of a claim whose value is null,
+  /// use the [containsKey] method instead.
+  ///
+  /// Note: when the claim name is 'aud', null is returned when there is
+  /// no audience (unlike the [audience] member, which is an empty list).
+
+  dynamic operator [](String claimName) {
+    if (!registeredClaimNames.contains(claimName)) {
+      // Non-registered claim
+      return _otherClaims[claimName];
+    } else {
+      // Registered claim
+      switch (claimName) {
+        case 'iss':
+          return issuer;
+        case 'sub':
+          return subject;
+        case 'aud':
+          return audience.isNotEmpty ? audience : null;
+        case 'exp':
+          return expiry;
+        case 'nbf':
+          return notBefore;
+        case 'iat':
+          return issuedAt;
+        case 'jti':
+          return jwtId;
+        default:
+          // coding error: all the registered claims should have been covered
+          throw new UnsupportedError('bad non-registered claim: $claimName');
+      }
+    }
+  }
+
+  /// Returns an Iterable of all the Claim Names of claims in the claim set.
+  ///
+  /// If [includeRegisteredClaims] is set to false, only the names of
+  /// non-registered claims are returned. The default is to consider all Claim
+  /// Names (i.e. for both registered and non-registered claims).
+
+  Iterable<String> claimNames({bool includeRegisteredClaims = true}) {
+    if (includeRegisteredClaims) {
+      final populatedClaims = <String>[];
+
+      for (var name in registeredClaimNames) {
+        if (containsKey(name)) {
+          populatedClaims.add(name); // registered claim present, include name
+        }
+      }
+
+      // Include non-registered claims
+      populatedClaims.addAll(_otherClaims.keys);
+
+      return populatedClaims;
+    } else {
+      return _otherClaims.keys;
+    }
+  }
+
+  /// The 'pld' claim.
+  ///
+  /// This getter is provided for backward compatibility with the previous
+  /// implementation, where the "payload" is a Map of values used to populate
+  /// the 'pld' claim.
+  ///
+  /// New code should use the list accessor operator or [containsKey] method.
+  /// For example, `claimSet['pld']` to get the payload's value or
+  /// `claimSet.containsKey('pld')` to check if a payload exists or not.
+
+  @deprecated
+  Map<String, dynamic> get payload {
+    final pld = _otherClaims[_legacyPayloadClaimName];
+
+    if (pld == null) {
+      return {}; // No payload
+    } else if (pld is Map<String, dynamic>) {
+      return pld; // Has payload
+    } else {
+      return {}; // No payload
+      // Note: legacy code only supports Map as a payload, even though new code
+      // may set the 'pld' claim to other types of values.
+    }
+  }
+
+  /// Constructor for a claim set.
+  ///
+  /// Registered claims are populated with these parameters:
+  ///
+  /// - [issuer] for the Issuer Claim
+  /// - [subject] for the Subject Claim
+  /// - [audience] for the Audience Claim (a list of zero or more Strings)
+  /// - [expiry] for the Expiration Time Claim
+  /// - [notBefore] for the Not Before Claim
+  /// - [issuedAt] for the Issued At Claim
+  /// - [jwtId] for the JWT ID Claim
+  ///
+  /// Non-registered claims are populated using the [otherClaims] parameter.
+  /// It is a Map with the Claim Name as the key and the claim value as the
+  /// value. The value must be something that can be converted into a JSON:
+  /// either a scalar (i.e. null, bool, int, double or String), a List, or
+  /// Map<String,dynamic>. The other claims parameter cannot be used to set
+  /// registered claims.
+  ///
+  /// The `payload` parameter is deprecated. To include a 'pld' claim,
+  /// use the [otherClaims] parameter. The use of both mechanisms at the same
+  /// time (to provide two 'pld' claims) is not permitted.
+  ///
+  /// Normally, the Issued At Claim and Expiration Time Claim are both given
+  /// default values if they are not provided.
+  /// If [issuedAt] is not specified, the current time is used.
+  /// If [expiry] is not specified, [maxAge] after the issuedAt time is used.
+  /// This default behaviour can be disabled by setting [defauitIatExp] to
+  /// false. When set to false, IssuedAt and Expiry claims are only set if they
+  /// are explicitly provided.
+
+  JwtClaim(
+      {this.issuer,
+      this.subject,
+      List<String> audience,
+      DateTime expiry,
+      DateTime notBefore,
+      DateTime issuedAt,
+      this.jwtId,
+      Map<String, dynamic> otherClaims,
+      @deprecated Map<String, dynamic> payload,
+      bool defaultIatExp = true,
+      Duration maxAge: _defaultMaxAge})
+      : audience = audience ?? [],
+        issuedAt = issuedAt?.toUtc() ??
+            ((defaultIatExp) ? new DateTime.now().toUtc() : null),
+        notBefore = notBefore?.toUtc(),
+        expiry = expiry?.toUtc() ??
+            ((defaultIatExp)
+                ? ((issuedAt?.toUtc() ?? new DateTime.now().toUtc())
+                    .add(maxAge))
+                : null) {
+    // Check and record any non-registered claims
+
+    if (otherClaims != null) {
+      // Check otherClaims does not contain any registered claims.
+      // Registered claims MUST be set using the specific parameter for them.
+      for (var k in otherClaims.keys) {
+        if (registeredClaimNames.contains(k)) {
+          throw new ArgumentError.value(k, 'otherClaims',
+              'registred claim not permmitted in otherClaims');
+        }
+      }
+      _otherClaims.addAll(otherClaims);
+    }
+
+    // Treat the payload parameter as a way to provide a claim named 'pld'
+
+    if (payload != null) {
+      if (_otherClaims.containsKey(_legacyPayloadClaimName)) {
+        throw new ArgumentError('do not use payload with "pld" in otherClaims');
+      }
+      _otherClaims[_legacyPayloadClaimName] = payload;
+    }
+  }
+
+  /// Constructs a claim set from a [Map] of claims.
+  ///
+  /// Normally, the IssuedAt and Expiry claims are always included.
+  /// If they are not present in the [data], default values are created for
+  /// them. This behaviour is disabled when [defaultIatExp] is false.
+  /// See the constructor's documentation for details of how [defaultIatExp]
+  /// and [maxAge] is used.
+  ///
+  /// Throws [JwtException.invalidToken] if the Map is not suitable.
+
+  factory JwtClaim.fromMap(Map<String, dynamic> data,
+      {bool defaultIatExp = true, Duration maxAge = _defaultMaxAge}) {
+    // Extract registered claims (if available) and check they are suitable
+
+    if (data.containsKey('iss')) {
+      if (data['iss'] is! String) {
+        throw JwtException.invalidToken; // issuer is not a StringOrURI
+      }
+    }
+
+    if (data.containsKey('sub')) {
+      if (data['sub'] is! String) {
+        throw JwtException.invalidToken; // subject is not a StringOrURI
+      }
+    }
+
+    final audienceList = <String>[];
+    if (data.containsKey('aud')) {
+      // The audience claim appears in the data
+      final aud = data['aud'];
+      if (aud is String) {
+        // Special case when the JWT has one audience
+        audienceList.add(aud);
+      } else if (aud is List) {
+        // General case
+        for (var a in aud) {
+          if (a is String) {
+            audienceList.add(a);
+          } else {
+            throw JwtException.invalidToken; // list contains a non-string value
+          }
+        }
+      } else {
+        throw JwtException.invalidToken; // unexpected type for audience
+
+      }
+    }
+
+    final expOrNull = _numericDateDecode(data['exp']);
+    final notBeforeOrNull = _numericDateDecode(data['nbf']);
+    final issuedAtOrNull = _numericDateDecode(data['iat']);
+
+    if (data.containsKey('jti')) {
+      if (data['jti'] is! String) {
+        throw JwtException.invalidToken; // JWT ID is not a StringOrURI
+      }
+    }
+
+    // Extract all non-registered claims (including 'pld' if it is in the data)
+
+    final others = <String, dynamic>{};
+
+    data.forEach((k, v) {
+      if (!registeredClaimNames.contains(k)) {
+        others[k] = v;
+      }
+    });
+
+    // Create a new JwtClaim and initialize with the registered claims
+
+    return JwtClaim(
+        issuer: data['iss'],
+        subject: data['sub'],
+        audience: audienceList,
+        expiry: expOrNull,
+        notBefore: notBeforeOrNull,
+        issuedAt: issuedAtOrNull,
+        jwtId: data["jti"],
+        otherClaims: (others.isNotEmpty) ? others : null,
+        defaultIatExp: defaultIatExp,
+        maxAge: maxAge);
   }
 
   /// Returns Dart built-in JSON representation of JWT claim set
   Map toJson() {
-    final body = <String, dynamic>{
-      "exp": expiry.millisecondsSinceEpoch ~/ 1000,
-      "iat": issuedAt.millisecondsSinceEpoch ~/ 1000,
-    };
+    final body = <String, dynamic>{};
 
-    // Add optional fields
+    // Include Registered Claim Names
 
     if (issuer is String) body['iss'] = issuer;
     if (subject is String) body['sub'] = subject;
     if (audience.length != 0) body['aud'] = audience;
-    if (payload.length != 0) body[payloadName] = _splayify(payload);
-    if (jwtId is String) body['jti'] = jwtId;
-    if (notBefore != null) {
-      body['nbf'] = notBefore.millisecondsSinceEpoch ~/ 1000;
+
+    if (expiry != null) {
+      body['exp'] = _numericDateEncode(expiry);
     }
+    if (notBefore != null) {
+      body['nbf'] = _numericDateEncode(notBefore);
+    }
+    if (issuedAt != null) {
+      body['iat'] = _numericDateEncode(issuedAt);
+    }
+
+    if (jwtId is String) body['jti'] = jwtId;
+
+    // Include non-registered claims
+
+    _otherClaims.forEach((k, v) {
+      assert(!body.containsKey(k));
+      if (v is Map) {
+        body[k] = _splayify(v); // Map value
+      } else {
+        body[k] = v; // scalar value or List
+      }
+    });
+
+    // Return result
 
     return _splayify(body);
   }
 
-  /// Validates the JWT claim set against provided [issuer] and [audience]
-  /// Also checks that the claim set hasn't expired
+  /// Validates the JWT claim set.
+  ///
+  /// Checks the for the [issuer] and [audience] and validates the Expiration
+  /// Time Claim and Not Before claim, if they are present.
   ///
   /// The time claims in the token (i.e. Expiry, Not Before and Issued At) are
   /// checked with the current time.
   /// A value for [currentTime] can be provided (this is useful for validating
   /// tokens previously received/saved/created), otherwise the current time of
   /// when this method is invoked is used.
+  ///
+  /// For consistency, validation fails if the Expiration Time Claim is before
+  /// the Not Before Claim, or the Expiration Time Claim is before the Issued At
+  /// Claim.
   ///
   /// An [allowedClockSkew] can be provided to allow for differences between
   /// the clock of the system that created the token and the clock of the system
@@ -211,13 +517,24 @@ class JwtClaim {
   void validate(
       {String issuer,
       String audience,
-      Duration allowedClockSkew: const Duration(),
+      Duration allowedClockSkew: const Duration(), // zero = allow no clock skew
       DateTime currentTime}) {
     // Ensure clock skew is never negative
 
     allowedClockSkew = allowedClockSkew.abs();
 
-    // Validate time claims are consistent
+    // Check Issuer Claim
+    if (issuer is String && this.issuer != issuer)
+      throw JwtException.incorrectIssuer;
+
+    // No checks for subject: the application is supposed to do that
+
+    // Check Audience Claim
+    if (audience is String && !this.audience.contains(audience))
+      throw JwtException.audienceNotAllowed;
+
+    // Validate time claims (if present) are consistent
+    // i.e. Expiry is not Before NotBefore, and expiry is not before IssuedAt
 
     if (expiry != null && notBefore != null && !expiry.isAfter(notBefore))
       throw JwtException.invalidToken;
@@ -235,33 +552,103 @@ class JwtClaim {
 
     final cTime = (currentTime ?? new DateTime.now()).toUtc();
 
-    // Check Issued At
-    // RFC7519 does not describe if or how the Issued At time claim is checked.
-    // This implementation rejects the token if the current time is before token
-    // was issued.
-    if (issuedAt != null && cTime.isBefore(issuedAt.subtract(allowedClockSkew)))
-      throw JwtException.tokenNotYetIssued;
+    // Check Expiration Time Claim
+    // Reject the token if the current time is at or after the Expiry time.
+    // (At exactly Expiry is also rejected.)
+    if (expiry != null && !cTime.isBefore(expiry.add(allowedClockSkew)))
+      throw JwtException.tokenExpired;
 
-    // Check Not Before
+    // Check Not Before Claim
     // Reject token if the current time is before the Not Before time.
+    // (At exactly Not Before is ok.)
     if (notBefore != null &&
         notBefore.subtract(allowedClockSkew).isAfter(cTime))
       throw JwtException.tokenNotYetAccepted;
 
-    // Check expiry
-    // Reject the token if the current time is at or after the Expiry time.
-    if (expiry != null && !cTime.isBefore(expiry.add(allowedClockSkew)))
-      throw JwtException.tokenExpired;
+    // No checks for Issued At Claim
+    //
+    // RFC7519 only says this "can be used to determine the age of the JWT".
+    //
+    // Some issuers deliberately set a NotBefore time to be one minute before
+    // the Issued At time. So they seem to expect NotBefore to be checked, but
+    // not IssuedAt.
 
-    // Validate other claims
+    // No checks for JWT ID Claim: the application is supposed to do that
+  }
 
-    // Check audience
-    if (audience is String && !this.audience.contains(audience))
-      throw JwtException.audienceNotAllowed;
+  //================================================================
+  // Utility methods for encoding and decoding a NumericDate.
+  //
+  // A _NumericDate_ is how the 'iss', 'nbf' and 'exp' times are represented in
+  // a JWT.
+  //
+  // A _NumericDate_ is specified in section 2 of RFC 7797
+  // <https://tools.ietf.org/html/rfc7519#section-2> as the number of seconds
+  // since 1970-01-01T00:00:00Z ignoring leap seconds.
+  // Note: it could be an integer or non-integer number (i.e. doubles).
+  //
+  // **Leap seconds**
+  //
+  // Non-conformance: this implementation does not ignore leap seconds.
+  // It uses the Dart DateTime value, which uses UTC or the local time of
+  // the computer and should include leap seconds.
+  //
+  // In limited testing, it appears other implementations also simply use
+  // their computer's clock. So for better interoperability, this implementation
+  // does not attempt to ignore leap seconds. If this is a problem, the
+  // validation of tokens can compensate for it by allowing for clock skew.
+  // Alternatively, this implementation could be modified to subtract/add
+  // the leap seconds when encoding/decoding a NumericDate.
 
-    // Check issuer
-    if (issuer is String && this.issuer != issuer)
-      throw JwtException.incorrectIssuer;
+  //----------------------------------------------------------------
+  /// Converts an optional NumericDate into a DateTime.
+  ///
+  /// If the [value] is null, null is returned. Otherwise, the value (which
+  /// could be an integer or double) is interpreted as a NumericDate and
+  /// returned as a DateTime.
+  ///
+  /// If the value is a double, any milliseconds are included in the result.
+  ///
+  /// Throws [JwtException.invalidToken] if the value is not the correct type
+  /// or is out of range.
+
+  static DateTime _numericDateDecode(dynamic value) {
+    if (value == null) {
+      // Absent
+      return null;
+    } else if (value is int) {
+      // Integer
+      if (0 <= value) {
+        return new DateTime.fromMillisecondsSinceEpoch(value * 1000,
+            isUtc: true);
+      } else {
+        throw JwtException.invalidToken; // negative
+      }
+    } else if (value is double) {
+      // Double
+      if (value.isFinite && 0.0 < value) {
+        return new DateTime.fromMillisecondsSinceEpoch((value * 1000).round(),
+            isUtc: true);
+      } else {
+        throw JwtException.invalidToken; // NAN, +ve infinity or negative
+      }
+    } else {
+      throw JwtException.invalidToken; // not an integer, nor a double
+    }
+  }
+
+  //----------------------------------------------------------------
+  /// Converts an optional DateTime to an integer NumericDate.
+  ///
+  /// Note: although NumericDate values can be doubles, but this implementation
+  /// only returns an integer, ignoring any fractions of a second that might
+  /// have been in the value. This is more portable, since non-conforming
+  /// implementations might not expect non-integer values.
+
+  static int _numericDateEncode(DateTime value) {
+    assert(value != null);
+    assert(value.isUtc); // or convert to UTC here?
+    return value.millisecondsSinceEpoch ~/ 1000; // truncating division
   }
 }
 
@@ -283,9 +670,8 @@ String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
   final SplayTreeMap<String, String> header =
       new SplayTreeMap.from({"alg": "HS256", "typ": "JWT"});
 
-  final encHdr = B64urlEncRFC7515.encode(json.encode(header).codeUnits);
-  final encPld =
-      B64urlEncRFC7515.encode(json.encode(claimSet.toJson()).codeUnits);
+  final encHdr = B64urlEncRFC7515.encodeUtf8(json.encode(header));
+  final encPld = B64urlEncRFC7515.encodeUtf8(json.encode(claimSet.toJson()));
 
   final data = encHdr + '.' + encPld;
 
@@ -296,16 +682,19 @@ String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
 
 /// Verifies that signature and extracts the claim set from a JWT.
 ///
-/// The payload in the claim set is taken from the claim whose name is
-/// 'pld'. This can be changed by providing a different name for [payloadName].
-///
 /// Returns the decoded claim set.
+///
+/// Normally, if IssuedAt and Expiry claims are not present, default values
+/// will be generated for them and set in the the claim set that is returned.
+/// This behaviour can be disabled by setting [defaultIatExp] to false.
+/// See the constructor [JwtClaim] for details about what default values are
+/// used.
 ///
 ///     final JwtClaim decClaimSet = verifyJwtHS256Signature(token, key);
 ///     print(decClaimSet.toJson());
 
 JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
-    {String payloadName = JwtClaim.defaultPayloadName}) {
+    {bool defaultIatExp = true, Duration maxAge = JwtClaim._defaultMaxAge}) {
   try {
     final hmac = new Hmac(sha256, hmacKey.codeUnits);
     final List<String> parts = token.split(".");
@@ -323,11 +712,13 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
     if (header is! Map)
       throw JwtException.invalidToken; // is JSON, but not a JSON object
 
+    // TODO: don't check the value, since "JWT" is recommended but not mandatory
+    // <https://tools.ietf.org/html/rfc7519#section-5.1>
     if (header['typ'] != null && header['typ'] != 'JWT')
       throw JwtException.invalidToken;
 
     if (header['alg'] != 'HS256')
-      throw JwtException.hashMismatch; // wrong algorithm
+      throw JwtException.hashMismatch; // wrong algorithm or missing
 
     // Verify signature: calculate signature and compare to token's signature
 
@@ -344,7 +735,8 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
     if (payload is! Map)
       throw JwtException.invalidToken; // is JSON, but not a JSON object
 
-    return new JwtClaim.fromMap(payload, payloadName: payloadName);
+    return new JwtClaim.fromMap(payload,
+        defaultIatExp: defaultIatExp, maxAge: maxAge);
   } on FormatException {
     // Can be caused by:
     //   - header or payload parts are not Base64url Encoding

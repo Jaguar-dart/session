@@ -40,41 +40,57 @@ main() {
 
       // Verify signature
 
-      final JwtClaim claimSet = verifyJwtHS256Signature(token, hmacKey);
+      final JwtClaim claimSet =
+          verifyJwtHS256Signature(token, hmacKey, defaultIatExp: false);
 
       // Validate the claim set
 
-      // TODO: fix jaguar_jwt so this can validate
-      // currently, it always adds "iat" of the current time when the test is
-      // run, which makes this JWT non-sensible since it has an expiry time
-      // before when this test is run.
-
-      // claimSet.validate(
-      //    issuer: issuer,
-      //    currentTime: exp.subtract(const Duration(seconds: 60)));
+      claimSet.validate(
+          issuer: issuer,
+          currentTime: exp.subtract(const Duration(seconds: 60)));
     });
 
     //----------------------------------------------------------------
 
-    test('no payload', () {
-      // This JWT has an empty payload.
+    test('Malformed claims', () {
+      // Tokens to test.
+      //
+      // Note: in the cases with an actual signature, that signature is correct.
+      // So the tests do not fail because the signature is invalid, but fails
+      // after signature verification when it tries to convert the payload into
+      // a claim set.
 
-      // TThe payload is the empty string. It is not even a JSON object.
-      // so while the signature validates, it cannot be converted into a claim
-      // set.
+      // TODO: create more test cases, simulating malicious JWTs
+      // For example:
+      // - iss is an integer (when it expects a string)
+      // - sub is an array (when it expects a string)
+      // - aud is an array of integers (when it expects an array of strings)
+      // - exp is a string (when it expects a numeric)
+      // - nbf is a negative integer (can NotBefore be before 1970?)
 
-      final token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..'
-          'iE8S5laiOzOYJxr411Fw2HrI9I-n2F8MREyuXFwqCDo'; // empty payload part
-      assert(B64urlEncRFC7515.decode(token.split('.')[1]).isEmpty); // no bytes
+      const badTokens = {
+        'token is an empty string': '',
+        'token is a single character': '0',
+        'token is a single period': '.',
+        'token is two periods': '..',
+        'token is three periods': '...',
+        'token is missing signature part': '1234.5678',
+        'token has too many parts': '1111.2222.3333.4444',
+        'encoded payload is empty string':
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..'
+            'iE8S5laiOzOYJxr411Fw2HrI9I-n2F8MREyuXFwqCDo',
+      };
 
-      // TODO: impreove error reporting so this can tell why it is invalid
-      expect(() => verifyJwtHS256Signature(token, secret),
-          throwsA(equals(JwtException.invalidToken)));
+      badTokens.forEach((desc, token) {
+        expect(() => verifyJwtHS256Signature(token, secret),
+            throwsA(equals(JwtException.invalidToken)),
+            reason: 'test failed when $desc');
+      });
     });
 
     //----------------------------------------------------------------
 
-    test('no claims', () {
+    test('No claims', () {
       // This JWT has no claims in its payload.
       //
       // The payload is the string "{}", which is a JSON object with no members.
@@ -85,24 +101,45 @@ main() {
           'mwiDnq8rTFp5Oyy5i7pT8qktTB4tZOAfiJXTEbEqn2g';
       assert(B64urlEncRFC7515.decodeUtf8(token.split('.')[1]) == '{}');
 
-      final claimSet = verifyJwtHS256Signature(token, secret);
+      final claimSet =
+          verifyJwtHS256Signature(token, secret, defaultIatExp: false);
+
+      // No registered claims
+
       expect(claimSet.issuer, isNull);
-      expect(claimSet.audience, isEmpty);
-      // Values for "iat" and "exp" are added during verification, which weren't
-      // in the JWT.
-      expect(claimSet.jwtId, isNull);
       expect(claimSet.subject, isNull);
-      expect(claimSet.payload, isEmpty);
+      expect(claimSet.audience, isEmpty);
+      expect(claimSet.expiry, isNull);
+      expect(claimSet.notBefore, isNull);
+      expect(claimSet.issuedAt, isNull);
+      expect(claimSet.jwtId, isNull);
+
+      // There are no non-registered claims too
+
+      final allClaimNames = new List<String>.from(
+          claimSet.claimNames(includeRegisteredClaims: true));
+
+      expect(allClaimNames.length, isZero);
+
+      // containsKey and list accessor operator also reports there are no claims
+
+      expect(claimSet.containsKey('iss'), isFalse);
+      expect(claimSet['iss'], isNull);
+
+      expect(claimSet.containsKey('aud'), isFalse);
+      expect(claimSet['aud'], isNull);
+
+      expect(claimSet.containsKey('noSuchClaim'), isFalse);
+      expect(claimSet['noSuchClaim'], isNull);
+
+      // expect(claimSet.payload, isEmpty); // deprecated
     });
 
     //----------------------------------------------------------------
 
-    // TODO: no other claims
-    // TODO: basic other claims
-
-    test('example with custom claim name', () {
+    test('Example with two non-registered claims', () {
       // A more complicated JWT.
-
+      //
       // {
       //   "iss": "https://issuer.example.com",
       //   "aud": [ "http://audience.example.com"],
@@ -144,11 +181,12 @@ main() {
           'OlCUOj66oPagFoy0MOKvg5g86ts46mY6A2WhuVhi9c0';
 
       final issuer = 'https://issuer.example.com';
-      final audience = 'http://audience.example.com';
-      final issuedAt = new DateTime.utc(2019, 1, 15, 2, 25, 19);
-      final expiry = new DateTime.utc(2019, 1, 15, 2, 27, 19);
       final subject =
           'https://example.com!http://localhost:10000!000abcdefghijklmnopqrstuvwxyz';
+      final audience = 'http://audience.example.com';
+      final expiry = new DateTime.utc(2019, 1, 15, 2, 27, 19);
+      final notBefore = new DateTime.utc(2019, 1, 15, 2, 25, 19);
+      final issuedAt = new DateTime.utc(2019, 1, 15, 2, 25, 19);
       final jwtId = 'R4k4dsWcmS9pbpSmGHwCCeoh9RjGLfIg';
 
       final secret = 's3cr3t';
@@ -164,9 +202,172 @@ main() {
           audience: audience,
           currentTime: issuedAt.add(const Duration(seconds: 5)));
 
+      // Check claim set has expected values
+
       expect(claimSet.subject, equals(subject));
+      expect(claimSet.expiry, equals(expiry));
+      expect(claimSet.notBefore, equals(notBefore));
+      expect(claimSet.issuedAt, equals(issuedAt));
       expect(claimSet.jwtId, equals(jwtId));
     });
 
+    //================================================================
+
+    group('Signature', () {
+      final claimSet = new JwtClaim(
+          subject: 'kleak',
+          issuer: 'issuer.example.com',
+          audience: <String>[
+            'audience.example.com'
+          ],
+          otherClaims: {
+            'pld': {'foo': 'bar'}
+          });
+
+      final correctSecret = 's3cr3t';
+      final wrongSecret = 'S3cr3t'; // wrong case for first character
+      String token = issueJwtHS256(claimSet, correctSecret);
+
+      test('Correct secret verifies', () {
+        expect(verifyJwtHS256Signature(token, correctSecret),
+            const TypeMatcher<JwtClaim>());
+      });
+
+      test('Wrong secret does not verify', () {
+        // Verifying with a different secret
+        expect(() => verifyJwtHS256Signature(token, wrongSecret),
+            throwsA(equals(JwtException.hashMismatch)));
+      });
+
+      test('Tampered header', () {
+        // Tamper with the header so its checksum does not match the signature
+
+        final List<String> parts = token.split(".");
+        assert(parts.length == 3);
+
+        const goodHeader = '{"alg":"HS256","typ":"JWT"}'; // control value
+
+        // Make sure the generated JWT has the expected header, otherwise
+        // tampering with the header might not produce the desired results.
+        // Probably the only way the header could differ is that order of the
+        // members is different (i.e. `{"typ":"JWT","alg":"HS256"}`) since
+        // order is not significant in a JSON object.
+        assert(B64urlEncRFC7515.decodeUtf8(parts[0]) == goodHeader,
+            'assumption about generated JWT header is wrong');
+
+        // Note: verifyJwtHS256Signature checks the header values before
+        // checking the signature, so bad values in the header should produce
+        // other exceptions before the signature verification fails
+        // (i.e. can have other exceptions besides [JwtException.hashMismatch]).
+
+        <String, JwtException>{
+          // Different alg
+          '{"typ":"JWT"}': JwtException.hashMismatch, // algorithm missing
+          '{"alg":"none","typ":"JWT"}': JwtException.hashMismatch, // not HS256
+
+          // Different typ
+          '{"alg":"HS256"}': JwtException.hashMismatch, // typ missing
+          '{"alg":"HS256","typ":"badValue"}': JwtException.invalidToken,
+          '{"alg":"HS256","typ":"jwt"}': JwtException.invalidToken, // case diff
+          '{"alg":"HS256","typ":"Jwt"}': JwtException.invalidToken, // case diff
+          '{"alg":"HS256","typ":"JWt"}': JwtException.invalidToken, // case diff
+          // TODO: In RFC 7519, "JWT" is only RECOMMENDED. Other values are OK.
+
+          // Semantically same JSON, but the hash is different
+          '{"typ":"JWT","alg":"HS256"}': JwtException.hashMismatch,
+          '{"alg":"HS256","typ":"JWT" }': JwtException.hashMismatch,
+          '{"alg":"HS256","typ":"JWT","a":"b"}': JwtException.hashMismatch,
+
+          goodHeader: null // control
+        }.forEach((header, expectedException) {
+          final newHead = B64urlEncRFC7515.encodeUtf8(header);
+          final tamperedToken = [newHead, parts[1], parts[2]].join('.');
+
+          if (expectedException != null) {
+            expect(() => verifyJwtHS256Signature(tamperedToken, correctSecret),
+                throwsA(equals(expectedException)),
+                reason: 'test failed with header=$header');
+          } else {
+            // Control: check the tampering code did not mess up something else
+            // and the above testing were succeeding because of a different
+            // cause than the one being tested.
+            try {
+              expect(tamperedToken, equals(token));
+
+              expect(verifyJwtHS256Signature(tamperedToken, correctSecret),
+                  const TypeMatcher<JwtClaim>(),
+                  reason: 'control case failed with header=$header');
+            } catch (e) {
+              fail('control case failed (header=$header): threw: $e');
+            }
+          }
+        });
+      });
+
+      //----------------------------------------------------------------
+
+      test('Tampered body', () {
+        // Tamper with the body so its checksum does not match the signature
+
+        final List<String> parts = token.split(".");
+        assert(parts.length == 3);
+
+        final body = B64urlEncRFC7515.decodeUtf8(parts[1]);
+        final t = body.replaceAll('"pld":{"foo":"bar"}', '"pld":{"foo":"baz"}');
+        expect(t, isNot(equals(body)),
+            reason: 'expected substring was not in payload');
+
+        final tamperedEncoding = B64urlEncRFC7515.encodeUtf8(t);
+        expect(tamperedEncoding, isNot(equals(parts[1])),
+            reason: 'tampering did not modify the encoded payload');
+
+        final tamperedToken = [parts[0], tamperedEncoding, parts[2]].join('.');
+        expect(tamperedToken, isNot(equals(token)),
+            reason: 'tampering did not modify the JWT');
+
+        expect(() => verifyJwtHS256Signature(tamperedToken, correctSecret),
+            throwsA(equals(JwtException.hashMismatch)),
+            reason: 'unexpected result when body was tampered with');
+      });
+
+      //----------------------------------------------------------------
+
+      test('Tampered signature', () {
+        // Tamper with the signature
+
+        final List<String> parts = token.split(".");
+        assert(parts.length == 3);
+
+        // Try tampering with different bits in the signature
+
+        for (var x = 0; x < 3; x++) {
+          final sigBytes = B64urlEncRFC7515.decode(parts[2]);
+          switch (x) {
+            case 0:
+              sigBytes[0] ^= 0x80; // flip MSB of first byte
+              break;
+            case 1:
+              sigBytes[sigBytes.length - 1] ^= 0x01; // flip LSB of last byte
+              break;
+            case 2:
+              sigBytes[8] ^= 0x18; // flip some other bits in the signature
+              break;
+            default:
+              assert(false);
+              break;
+          }
+
+          final tamperedSig = B64urlEncRFC7515.encode(sigBytes);
+          expect(tamperedSig != parts[2], isTrue); // tampering did not change
+
+          final tamperedToken = [parts[0], parts[1], tamperedSig].join('.');
+
+          expect(() => verifyJwtHS256Signature(tamperedToken, correctSecret),
+              throwsA(equals(JwtException.hashMismatch)),
+              reason:
+                  'signature valid even though signature was tampered with');
+        }
+      });
+    });
   });
 }

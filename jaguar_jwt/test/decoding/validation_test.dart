@@ -7,177 +7,22 @@ main() {
   group('Validation', () {
     //================================================================
 
-    group('Signature', () {
-      final claimSet = new JwtClaim(
-          subject: 'kleak',
-          issuer: 'issuer.example.com',
-          audience: <String>['audience.example.com'],
-          payload: {'foo': 'bar'});
-
-      final correctSecret = 'secret';
-      final wrongSecret = 'Secret'; // wrong case for first character
-      String token = issueJwtHS256(claimSet, correctSecret);
-
-      test('correct secret: verifies', () {
-        expect(verifyJwtHS256Signature(token, correctSecret),
-            const TypeMatcher<JwtClaim>());
-      });
-
-      test('wrong secret: fail', () {
-        // Verifying with a different secret
-        expect(() => verifyJwtHS256Signature(token, wrongSecret),
-            throwsA(equals(JwtException.hashMismatch)));
-      });
-
-      test('tampered header: fail', () {
-        // Tamper with the header so its checksum does not match the signature
-
-        final List<String> parts = token.split(".");
-        assert(parts.length == 3);
-
-        const goodHeader = '{"alg":"HS256","typ":"JWT"}'; // control value
-
-        // Make sure the generated JWT has the expected header, otherwise
-        // tampering with the header might not produce the desired results.
-        // Probably the only way the header could differ is that order of the
-        // members is different (i.e. `{"typ":"JWT","alg":"HS256"}`) since
-        // order is not significant in a JSON object.
-        assert(B64urlEncRFC7515.decodeUtf8(parts[0]) == goodHeader,
-            'assumption about generated JWT header is wrong');
-
-        // Note: verifyJwtHS256Signature checks the header values before
-        // checking the signature, so bad values in the header should produce
-        // other exceptions before the signature verification fails
-        // (i.e. can have other exceptions besides [JwtException.hashMismatch]).
-
-        <String, JwtException>{
-          // Different alg
-          '{"typ":"JWT"}': JwtException.hashMismatch, // algorithm missing
-          '{"alg":"none","typ":"JWT"}': JwtException.hashMismatch, // not HS256
-
-          // Different typ
-          '{"alg":"HS256"}': JwtException.hashMismatch, // typ missing
-          '{"alg":"HS256","typ":"badValue"}': JwtException.invalidToken,
-          '{"alg":"HS256","typ":"jwt"}': JwtException.invalidToken, // case diff
-          '{"alg":"HS256","typ":"Jwt"}': JwtException.invalidToken, // case diff
-          '{"alg":"HS256","typ":"JWt"}': JwtException.invalidToken, // case diff
-          // TODO: In RFC 7519, "JWT" is only RECOMMENDED. Other values are OK.
-
-          // Semantically same JSON, but the hash is different
-          '{"typ":"JWT","alg":"HS256"}': JwtException.hashMismatch,
-          '{"alg":"HS256","typ":"JWT" }': JwtException.hashMismatch,
-          '{"alg":"HS256","typ":"JWT","a":"b"}': JwtException.hashMismatch,
-
-          goodHeader: null // control
-        }.forEach((header, expectedException) {
-          final newHead = B64urlEncRFC7515.encodeUtf8(header);
-          final tamperedToken = [newHead, parts[1], parts[2]].join('.');
-
-          if (expectedException != null) {
-            expect(() => verifyJwtHS256Signature(tamperedToken, correctSecret),
-                throwsA(equals(expectedException)),
-                reason: 'test failed with header=$header');
-          } else {
-            // Control: check the tampering code did not mess up something else
-            // and the above testing were succeeding because of a different
-            // cause than the one being tested.
-            try {
-              expect(tamperedToken, equals(token));
-
-              expect(verifyJwtHS256Signature(tamperedToken, correctSecret),
-                  const TypeMatcher<JwtClaim>(),
-                  reason: 'control case failed with header=$header');
-            } catch (e) {
-              fail('control case failed (header=$header): threw: $e');
-            }
-          }
-        });
-      });
-
-      //----------------------------------------------------------------
-
-      test('tampered body: fail', () {
-        // Tamper with the body so its checksum does not match the signature
-
-        final List<String> parts = token.split(".");
-        assert(parts.length == 3);
-
-        final body = B64urlEncRFC7515.decodeUtf8(parts[1]);
-        final t = body.replaceAll('"pld":{"foo":"bar"}', '"pld":{"foo":"baz"}');
-        expect(t != body, isTrue, reason: 'expected substring not in payload');
-
-        final tamperedEncoding = B64urlEncRFC7515.encodeUtf8(t);
-        expect(tamperedEncoding, isNot(equals(parts[1])),
-            reason: 'tampering did not modify the encoded payload');
-
-        final tamperedToken = [parts[0], tamperedEncoding, parts[2]].join('.');
-        expect(tamperedToken, isNot(equals(token)),
-            reason: 'tampering did not modify the JWT');
-
-        expect(() => verifyJwtHS256Signature(tamperedToken, correctSecret),
-            throwsA(equals(JwtException.hashMismatch)),
-            reason: 'unexpected result when body was tampered with');
-      });
-
-      //----------------------------------------------------------------
-
-      test('tampered signature: fail', () {
-        // Tamper with the signature
-
-        final List<String> parts = token.split(".");
-        assert(parts.length == 3);
-
-        // Try tampering with different bits in the signature
-
-        for (var x = 0; x < 3; x++) {
-          final sigBytes = B64urlEncRFC7515.decode(parts[2]);
-          switch (x) {
-            case 0:
-              sigBytes[0] ^= 0x80; // flip MSB of first byte
-              break;
-            case 1:
-              sigBytes[sigBytes.length - 1] ^= 0x01; // flip LSB of last byte
-              break;
-            case 2:
-              sigBytes[8] ^= 0x18; // flip some other bits in the signature
-              break;
-            default:
-              assert(false);
-              break;
-          }
-
-          final tamperedSig = B64urlEncRFC7515.encode(sigBytes);
-          expect(tamperedSig != parts[2], isTrue); // tampering did not change
-
-          final tamperedToken = [parts[0], parts[1], tamperedSig].join('.');
-
-          expect(() => verifyJwtHS256Signature(tamperedToken, correctSecret),
-              throwsA(equals(JwtException.hashMismatch)),
-              reason:
-                  'signature valid even though signature was tampered with');
-        }
-      });
-
-    });
-
-    //================================================================
-
     group('Issuer', () {
       final correctIssuer = 'issuer.example.com';
 
       final claimSetIssuer0 = new JwtClaim();
       final claimSetIssuer1 = new JwtClaim(issuer: correctIssuer);
 
-      test('issuer does not matter: valid', () {
+      test('Issuer does not matter', () {
         claimSetIssuer0.validate(); // no issuer parameter
         claimSetIssuer1.validate(); // no issuer parameter
       });
 
-      test('issuer matches: valid', () {
+      test('Issuer matches', () {
         claimSetIssuer1.validate(issuer: correctIssuer);
       });
 
-      test('issuer mismatch: invalid', () {
+      test('Issuer mismatch', () {
         final wrongIssuer = 'wrong-isser.example.com';
 
         expect(() => claimSetIssuer0.validate(issuer: wrongIssuer),
@@ -200,13 +45,13 @@ main() {
       final claimSetAudienceN =
           new JwtClaim(audience: <String>[audience1, audience2, audience3]);
 
-      test('audience does not matter: valid', () {
+      test('Audience does not matter', () {
         claimSetAudience0.validate(); // no audience parameter
         claimSetAudience1.validate(); // no audience parameter
         claimSetAudienceN.validate(); // no audience parameter
       });
 
-      test('audience found: valid', () {
+      test('Audience found', () {
         claimSetAudience1.validate(audience: audience1);
 
         claimSetAudienceN.validate(audience: audience1);
@@ -214,7 +59,7 @@ main() {
         claimSetAudienceN.validate(audience: audience3);
       });
 
-      test('audience not found: invalid', () {
+      test('Audience not found', () {
         final missingAudience = 'missing-audience.example.com';
 
         expect(() => claimSetAudience0.validate(audience: missingAudience),
@@ -260,11 +105,17 @@ main() {
           expect(claimSet.notBefore, isNotNull);
         });
 
-        test('Before IssuedAt: invalid (not yet issued)', () {
+        test('Before IssuedAt: valid', () {
+          // The Issued At Claim is only used for determining how old a JWT is.
+          // No validation is performed using it (other than making sure it is
+          // before any Expiration Time Claim). It is valid, but weird, for a
+          // JWT to claim it was issued after the current time.
+          //
+          // This test fails because it is before the NotBefore time.
           expect(
               () =>
                   claimSet.validate(currentTime: issuedAt.subtract(smallDelay)),
-              throwsA(equals(JwtException.tokenNotYetIssued)));
+              throwsA(equals(JwtException.tokenNotYetAccepted)));
         });
 
         test('At IssuedAt: invalid (not yet accepted)', () {
@@ -360,11 +211,12 @@ main() {
           expect(claimSet.notBefore, isNull);
         });
 
-        test('Before IssuedAt: invalid (not yet issued)', () {
-          expect(
-              () =>
-                  claimSet.validate(currentTime: issuedAt.subtract(smallDelay)),
-              throwsA(equals(JwtException.tokenNotYetIssued)));
+        test('Before IssuedAt: valid', () {
+          // The Issued At Claim is only used for determining how old a JWT is.
+          // No validation is performed using it (other than making sure it is
+          // before any Expiration Time Claim). It is valid, but weird, for a
+          // JWT to claim it was issued after the current time.
+          claimSet.validate(currentTime: issuedAt.subtract(smallDelay));
         });
 
         test('At IssuedAt: valid', () {
@@ -415,7 +267,7 @@ main() {
       });
 
       //----------------
-      group('Defaults', () {
+      group('Default issuedAt and Expiry', () {
         // Claim set with no explicit time claims provided to the constructor
         final claimSet = new JwtClaim();
         final whenConstructorWasInvoked = new DateTime.now();

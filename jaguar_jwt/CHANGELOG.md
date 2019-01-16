@@ -4,9 +4,9 @@
 
 + Added support for optional Not Before (`nbf`) time claims.
 + Fixed validation to reject token when current time equals the Expiry time.
-+ Added support for custom payload name.
 + Added more validation unit tests.
 + Fixed generation of JWT to use correct Base64url Encoding.
++ Added general support for non-registered claims.
 
 ## 2.1.2
 
