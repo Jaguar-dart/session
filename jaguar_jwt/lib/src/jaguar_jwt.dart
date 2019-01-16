@@ -13,11 +13,15 @@ import 'package:crypto/crypto.dart';
 /// JWT exception
 
 class JwtException {
+  // TODO: this really should "implements Exception"
+
+  /// Constant constructor for a JwtException.
+  const JwtException(this.message);
+
   /// Exception message
   final String message;
 
-  const JwtException(this.message);
-
+  @override
   String toString() => message;
 
   /// Invalid token exception
@@ -50,253 +54,53 @@ class JwtException {
 }
 
 //================================================================
-/// Model for JwtToken
+/// A set of claims for a Java Web Token (JWT).
 ///
-/// A JwtClaim represents a set of claims.
+/// A claim is represented as a name/value pair, consisting of a Claim Name
+/// (which uniquely identifies the claim) and a Claim Value.
 ///
-/// Claims are identified by a Claim Name. This implementation classifies
-/// claims into two types: registered claims are those which correspond to the
-/// seven _Registered Claim Names_ defined in section 4.1 of RFC 7519
-/// <https://tools.ietf.org/html/rfc7519#section-4.1>; and non-registered claims
-/// are all other claims.
+/// This implementation classifies
+/// claims into two types: "registered claims" correspond to the
+/// seven _Registered Claim Names_ defined in section 4.1 of
+/// [RFC 7519](https://tools.ietf.org/html/rfc7519#section-4.1); and
+/// all other claims are "non-registered claims".
 ///
-/// Registered claims have their own member variable (e.g. [issuer] and [aud]).
-/// Non-registered claims are accessed through the list access operator
-/// (e.g. `claimSet['foo']`).
+/// Registered claims have their own member variable (e.g. [issuer], [subject]
+/// and [audience]).
+///
+/// Non-registered claims are accessed through the list access
+/// [operator[]] and their presence can be determined using the
+/// [containsKey] method.
+///
+/// The Claim Names of all present claims can be obtained using [claimNames].
 ///
 /// Note: a JwtClaim should be considered immutable. The claims are initialized
 /// when it is created. The behaviour is undefined if a program tries to modify
-/// the value of any claim (which is only possible for some cases, since most of
-/// the members are final).
+/// the value of any claim.
 ///
 /// The `payload` getter is provided for backward compatibility with an earlier
 /// release. It is deprecated. New code should handle the 'pld' claim as any
 /// other non-registered claim.
 ///
+/// ```
 /// Issue token from [JwtClaim]:
 ///     final claimSet = new JwtClaim(
 ///       subject: 'kleak',
 ///       issuer: 'teja',
-///       audience: <String>['example.com', 'hello.com'],
-///       payload: {'k': 'v'});
-///       String token = issueJwtHS256(claimSet, key);
-///       print(token);
+///       audience: <String>['example.com', 'client2.example.com'],
+///       otherClaims: <String,dynamic>{ 'pld': {'k': 'v'} });
+///
+///     final token = issueJwtHS256(claimSet, key);
+///     print(token);
 ///
 /// Parse [JwtClaim] from token:
-///     final JwtClaim decClaimSet = verifyJwtHS256Signature(token, key);
+///     final decClaimSet = verifyJwtHS256Signature(token, key);
 ///     print(decClaimSet.toJson());
+/// ```
 
 class JwtClaim {
-  /// Claim Names for all the Registered Claim Names.
-  ///
-  /// See section 4.1 of RFC 7519 for their definition
-  /// <https://tools.ietf.org/html/rfc7519#section-4.1>.
-
-  static const registeredClaimNames = const [
-    'iss',
-    'sub',
-    'aud',
-    'exp',
-    'nbf',
-    'iat',
-    'jti'
-  ];
-
-  // Note: when writing code, try to follow this order (which is from RFC 7519).
-
-  /// Default duration between issued time and expiry time.
-  ///
-  /// Used to generate a value for Expiry when creating a claim set and no
-  /// explicit value for Expiry is provided (and the generation of a default
-  /// value has not been disabled).
-  static const _defaultMaxAge = const Duration(days: 1);
-
-  /// Claim Name for the legacy payload claim.
-  static const String _legacyPayloadClaimName = 'pld';
-
-  /// Issuer claim
-  ///
-  /// If this claim does not exist, the value is null.
-  ///
-  /// The claim name for this claim is 'iss'.
-  final String issuer;
-
-  /// Subject claim
-  ///
-  /// If this claim does not exist, the value is null.
-  ///
-  /// The claim name for this claim is 'sub'.
-  final String subject;
-
-  /// Audience claim
-  ///
-  /// If this claim does not exist, the value is an empty list.
-  ///
-  /// The claim name for this claim is 'aud'.
-  final List<String> audience;
-
-  /// Expiration Time claim
-  ///
-  /// If this claim does not exist, the value is null.
-  ///
-  /// The claim name for this claim is 'exp'.
-  final DateTime expiry;
-
-  /// Not Before claim
-  ///
-  /// If this claim does not exist, the value is null.
-  ///
-  /// The claim name for this claim is 'nbf'.
-  final DateTime notBefore;
-
-  /// Issued At claim
-  ///
-  /// If this claim does not exist, the value is null.
-  ///
-  /// The claim name for this claim is 'iat'.
-  final DateTime issuedAt;
-
-  /// JWT ID claim
-  ///
-  /// If this claim does not exist, the value is null.
-  ///
-  /// The claim name for this claim is 'jti'.
-  final String jwtId;
-
-  /// All non-registered claims.
-  ///
-  /// This is a Map where the key is the Claim Name and the value is the claim's
-  /// value. The value can be anything that can be converted into JSON.
-  /// For example, a scalar value (e.g. null, int or String), a List or Map.
-  final _otherClaims = <String, dynamic>{};
-
-  /// Indicates if a claim exists or not.
-  ///
-  /// The [claimName] can be the Claim Name of a registered claim or a
-  /// non-registered claim.
-
-  bool containsKey(String claimName) {
-    if (!registeredClaimNames.contains(claimName)) {
-      // Non-registered claim
-      return _otherClaims.containsKey(claimName);
-    } else {
-      // Registered claim
-      switch (claimName) {
-        case 'iss':
-          return issuer != null;
-        case 'sub':
-          return subject != null;
-        case 'aud':
-          return audience.isNotEmpty;
-        case 'exp':
-          return expiry != null;
-        case 'nbf':
-          return notBefore != null;
-        case 'iat':
-          return issuedAt != null;
-        case 'jti':
-          return jwtId != null;
-        default:
-          // coding error: all the registered claims should have been covered
-          throw new UnsupportedError('bad non-registered claim: $claimName');
-      }
-    }
-  }
-
-  /// Retrieves the value of a claim.
-  ///
-  /// Pass in the Claim Name in [claimName].
-  ///
-  /// This method works for both registered claims and non-registered claims.
-  /// For registered claims, use the corresponding member variables to retrieve
-  /// their values in a type-safe manner.
-  ///
-  /// Returns null if the claim is not present.
-  ///
-  /// The value of a non-registered claim may be `null`. To distinguish between
-  /// the absence of a claim and the presence of a claim whose value is null,
-  /// use the [containsKey] method instead.
-  ///
-  /// Note: when the claim name is 'aud', null is returned when there is
-  /// no audience (unlike the [audience] member, which is an empty list).
-
-  dynamic operator [](String claimName) {
-    if (!registeredClaimNames.contains(claimName)) {
-      // Non-registered claim
-      return _otherClaims[claimName];
-    } else {
-      // Registered claim
-      switch (claimName) {
-        case 'iss':
-          return issuer;
-        case 'sub':
-          return subject;
-        case 'aud':
-          return audience.isNotEmpty ? audience : null;
-        case 'exp':
-          return expiry;
-        case 'nbf':
-          return notBefore;
-        case 'iat':
-          return issuedAt;
-        case 'jti':
-          return jwtId;
-        default:
-          // coding error: all the registered claims should have been covered
-          throw new UnsupportedError('bad non-registered claim: $claimName');
-      }
-    }
-  }
-
-  /// Returns an Iterable of all the Claim Names of claims in the claim set.
-  ///
-  /// If [includeRegisteredClaims] is set to false, only the names of
-  /// non-registered claims are returned. The default is to consider all Claim
-  /// Names (i.e. for both registered and non-registered claims).
-
-  Iterable<String> claimNames({bool includeRegisteredClaims = true}) {
-    if (includeRegisteredClaims) {
-      final populatedClaims = <String>[];
-
-      for (var name in registeredClaimNames) {
-        if (containsKey(name)) {
-          populatedClaims.add(name); // registered claim present, include name
-        }
-      }
-
-      // Include non-registered claims
-      populatedClaims.addAll(_otherClaims.keys);
-
-      return populatedClaims;
-    } else {
-      return _otherClaims.keys;
-    }
-  }
-
-  /// The 'pld' claim.
-  ///
-  /// This getter is provided for backward compatibility with the previous
-  /// implementation, where the "payload" is a Map of values used to populate
-  /// the 'pld' claim.
-  ///
-  /// New code should use the list accessor operator or [containsKey] method.
-  /// For example, `claimSet['pld']` to get the payload's value or
-  /// `claimSet.containsKey('pld')` to check if a payload exists or not.
-
-  @deprecated
-  Map<String, dynamic> get payload {
-    final pld = _otherClaims[_legacyPayloadClaimName];
-
-    if (pld == null) {
-      return {}; // No payload
-    } else if (pld is Map<String, dynamic>) {
-      return pld; // Has payload
-    } else {
-      return {}; // No payload
-      // Note: legacy code only supports Map as a payload, even though new code
-      // may set the 'pld' claim to other types of values.
-    }
-  }
+  //================================================================
+  // Constructors and factories
 
   /// Constructor for a claim set.
   ///
@@ -311,23 +115,23 @@ class JwtClaim {
   /// - [jwtId] for the JWT ID Claim
   ///
   /// Non-registered claims are populated using the [otherClaims] parameter.
-  /// It is a Map with the Claim Name as the key and the claim value as the
+  /// It is a Map with the Claim Name as the key and the Claim Value as the
   /// value. The value must be something that can be converted into a JSON:
   /// either a scalar (i.e. null, bool, int, double or String), a List, or
-  /// Map<String,dynamic>. The other claims parameter cannot be used to set
-  /// registered claims.
+  /// Map<String,dynamic>. The otherClaims parameter cannot be used to set
+  /// registered claims, only non-registered claims.
   ///
   /// The `payload` parameter is deprecated. To include a 'pld' claim,
   /// use the [otherClaims] parameter. The use of both mechanisms at the same
   /// time (to provide two 'pld' claims) is not permitted.
   ///
-  /// Normally, the Issued At Claim and Expiration Time Claim are both given
-  /// default values if they are not provided.
+  /// Normally, the _Issued At Claim_ and _Expiration Time Claim_ are both
+  /// assigned default values if they are not provided.
   /// If [issuedAt] is not specified, the current time is used.
-  /// If [expiry] is not specified, [maxAge] after the issuedAt time is used.
-  /// This default behaviour can be disabled by setting [defauitIatExp] to
-  /// false. When set to false, IssuedAt and Expiry claims are only set if they
-  /// are explicitly provided.
+  /// If [expiry] is not specified, [maxAge] after the _Issued At Claim_ is used.
+  /// This default behaviour can be disabled by setting [defaultIatExp] to
+  /// false. When set to false, the _Issued At Claim_ and and _Expiration Time
+  /// Claim_ are only set if they are explicitly provided.
 
   JwtClaim(
       {this.issuer,
@@ -374,36 +178,40 @@ class JwtClaim {
     }
   }
 
-  /// Constructs a claim set from a [Map] of claims.
+  /// Constructs a claim set from a Map of claims.
   ///
-  /// Normally, the IssuedAt and Expiry claims are always included.
-  /// If they are not present in the [data], default values are created for
+  /// Normally, the _Issued At_ and _Expiration Time Claims_ will always be set.
+  /// If they are not present in the [data], default values are assigned to
   /// them. This behaviour is disabled when [defaultIatExp] is false.
-  /// See the constructor's documentation for details of how [defaultIatExp]
-  /// and [maxAge] is used.
+  /// See the [JwtClaim] constructor for details of how [defaultIatExp]
+  /// and [maxAge] control these default values.
   ///
   /// Throws [JwtException.invalidToken] if the Map is not suitable.
 
-  factory JwtClaim.fromMap(Map<String, dynamic> data,
+  factory JwtClaim.fromMap(Map<dynamic, dynamic> data,
       {bool defaultIatExp = true, Duration maxAge = _defaultMaxAge}) {
+    // Note: the map comes from parsing the payload into JSON, so we can't
+    // guarantee what the types of its keys and values are.
+
     // Extract registered claims (if available) and check they are suitable
 
-    if (data.containsKey('iss')) {
-      if (data['iss'] is! String) {
-        throw JwtException.invalidToken; // issuer is not a StringOrURI
-      }
-    }
-
-    if (data.containsKey('sub')) {
-      if (data['sub'] is! String) {
-        throw JwtException.invalidToken; // subject is not a StringOrURI
+    final singleStringValue =
+        <String, String>{}; // for the three StringOrURI values
+    for (var claimName in ['iss', 'sub', 'jti']) {
+      if (data.containsKey(claimName)) {
+        final dynamic v = data[claimName];
+        if (v is String) {
+          singleStringValue[claimName] = v;
+        } else {
+          throw JwtException.invalidToken; // claim is not a StringOrURI
+        }
       }
     }
 
     final audienceList = <String>[];
     if (data.containsKey('aud')) {
       // The audience claim appears in the data
-      final aud = data['aud'];
+      final dynamic aud = data['aud'];
       if (aud is String) {
         // Special case when the JWT has one audience
         audienceList.add(aud);
@@ -426,35 +234,250 @@ class JwtClaim {
     final notBeforeOrNull = _numericDateDecode(data['nbf']);
     final issuedAtOrNull = _numericDateDecode(data['iat']);
 
-    if (data.containsKey('jti')) {
-      if (data['jti'] is! String) {
-        throw JwtException.invalidToken; // JWT ID is not a StringOrURI
-      }
-    }
-
     // Extract all non-registered claims (including 'pld' if it is in the data)
 
     final others = <String, dynamic>{};
 
-    data.forEach((k, v) {
-      if (!registeredClaimNames.contains(k)) {
-        others[k] = v;
+    data.forEach((dynamic k, dynamic v) {
+      if (k is String) {
+        if (!registeredClaimNames.contains(k)) {
+          others[k] = v;
+        }
+      } else {
+        throw JwtException.invalidToken; // Map had non-String as a key
       }
     });
 
     // Create a new JwtClaim and initialize with the registered claims
 
     return JwtClaim(
-        issuer: data['iss'],
-        subject: data['sub'],
+        issuer: singleStringValue['iss'],
+        subject: singleStringValue['sub'],
         audience: audienceList,
         expiry: expOrNull,
         notBefore: notBeforeOrNull,
         issuedAt: issuedAtOrNull,
-        jwtId: data["jti"],
+        jwtId: singleStringValue['jti'],
         otherClaims: (others.isNotEmpty) ? others : null,
         defaultIatExp: defaultIatExp,
         maxAge: maxAge);
+  }
+
+  //================================================================
+  // Static members
+
+  /// Claim Names for all the Registered Claim Names.
+  ///
+  /// For their defintion, see section 4.1 of
+  /// [RFC 7519](https://tools.ietf.org/html/rfc7519#section-4.1).
+
+  static const List<String> registeredClaimNames = [
+    'iss',
+    'sub',
+    'aud',
+    'exp',
+    'nbf',
+    'iat',
+    'jti'
+  ];
+
+  // Note: when writing code, try to follow this order (which is from RFC 7519).
+
+  /// Default duration between issued time and expiry time.
+  ///
+  /// Used to generate a value for Expiry when creating a claim set and no
+  /// explicit value for Expiry is provided (and the generation of a default
+  /// value has not been disabled).
+  static const _defaultMaxAge = const Duration(days: 1);
+
+  /// Claim Name for the legacy payload claim.
+  static const String _legacyPayloadClaimName = 'pld';
+
+  //================================================================
+  // Members
+
+  /// Issuer Claim
+  ///
+  /// If this claim does not exist, the value is null.
+  ///
+  /// The claim name for this claim is 'iss'.
+  final String issuer;
+
+  /// Subject Claim
+  ///
+  /// If this claim does not exist, the value is null.
+  ///
+  /// The claim name for this claim is 'sub'.
+  final String subject;
+
+  /// Audience Claim
+  ///
+  /// If this claim does not exist, the value is an empty list.
+  ///
+  /// The claim name for this claim is 'aud'.
+  final List<String> audience;
+
+  /// Expiration Time Claim
+  ///
+  /// If this claim does not exist, the value is null.
+  ///
+  /// The claim name for this claim is 'exp'.
+  final DateTime expiry;
+
+  /// Not Before Claim
+  ///
+  /// If this claim does not exist, the value is null.
+  ///
+  /// The claim name for this claim is 'nbf'.
+  final DateTime notBefore;
+
+  /// Issued At Claim
+  ///
+  /// If this claim does not exist, the value is null.
+  ///
+  /// The claim name for this claim is 'iat'.
+  final DateTime issuedAt;
+
+  /// JWT ID Claim
+  ///
+  /// If this claim does not exist, the value is null.
+  ///
+  /// The claim name for this claim is 'jti'.
+  final String jwtId;
+
+  /// All non-registered claims.
+  ///
+  /// This is a Map where the key is the Claim Name and the value is the claim's
+  /// value. The value can be anything that can be converted into JSON.
+  /// For example, a scalar value (e.g. null, int or String), a List or Map.
+  final _otherClaims = <String, dynamic>{};
+
+  //================================================================
+  // Methods
+
+  /// Indicates if a claim exists or not.
+  ///
+  /// The [claimName] can be the Claim Name of a registered claim or a
+  /// non-registered claim.
+
+  bool containsKey(String claimName) {
+    if (!registeredClaimNames.contains(claimName)) {
+      // Non-registered claim
+      return _otherClaims.containsKey(claimName);
+    } else {
+      // Registered claim
+      switch (claimName) {
+        case 'iss':
+          return issuer != null;
+        case 'sub':
+          return subject != null;
+        case 'aud':
+          return audience.isNotEmpty;
+        case 'exp':
+          return expiry != null;
+        case 'nbf':
+          return notBefore != null;
+        case 'iat':
+          return issuedAt != null;
+        case 'jti':
+          return jwtId != null;
+        default:
+          // coding error: all the registered claims should have been covered
+          throw new UnsupportedError('bad non-registered claim: $claimName');
+      }
+    }
+  }
+
+  /// Retrieves the value of a claim.
+  ///
+  /// The [claimName] can be the Claim Name for either registered claims or
+  /// non-registered claims. But for registered claims, for type-safety, it
+  /// may be better to use its corresponding member variables.
+  ///
+  /// Returns null if the claim is not present or the Claim Value is the
+  /// null value. Use the [containsKey] method to distinguish between
+  /// the absence of a claim and the presence of a claim whose value is null.
+  ///
+  /// Note: when the claim name is 'aud', this method returns null when there is
+  /// no Audience Claim (unlike the [audience] member variable, which will be an
+  /// empty list).
+
+  dynamic operator [](String claimName) {
+    if (!registeredClaimNames.contains(claimName)) {
+      // Non-registered claim
+      return _otherClaims[claimName];
+    } else {
+      // Registered claim
+      switch (claimName) {
+        case 'iss':
+          return issuer;
+        case 'sub':
+          return subject;
+        case 'aud':
+          return audience.isNotEmpty ? audience : null;
+        case 'exp':
+          return expiry;
+        case 'nbf':
+          return notBefore;
+        case 'iat':
+          return issuedAt;
+        case 'jti':
+          return jwtId;
+        default:
+          // coding error: all the registered claims should have been covered
+          throw new UnsupportedError('bad non-registered claim: $claimName');
+      }
+    }
+  }
+
+  /// Returns an Iterable of all the Claim Names of claims in the claim set.
+  ///
+  /// The default is to consider all Claim Names (i.e. for both registered and
+  /// non-registered claims). If [includeRegisteredClaims] is set to false,
+  /// registered claims are not included.
+
+  Iterable<String> claimNames({bool includeRegisteredClaims = true}) {
+    if (includeRegisteredClaims) {
+      final populatedClaims = <String>[];
+
+      for (var name in registeredClaimNames) {
+        if (containsKey(name)) {
+          populatedClaims.add(name); // registered claim present, include name
+        }
+      }
+
+      // Include non-registered claims
+      populatedClaims.addAll(_otherClaims.keys);
+
+      return populatedClaims;
+    } else {
+      return _otherClaims.keys;
+    }
+  }
+
+  /// The 'pld' claim.
+  ///
+  /// This getter is provided for backward compatibility with the previous
+  /// implementation, where the "payload" is a Map of values used to populate
+  /// the 'pld' claim.
+  ///
+  /// New code should use the list accessor [operator[]] or [containsKey] method.
+  /// For example, `claimSet['pld']` to get the payload's value or
+  /// `claimSet.containsKey('pld')` to check if a payload exists or not.
+
+  @deprecated
+  Map<String, dynamic> get payload {
+    final dynamic pld = _otherClaims[_legacyPayloadClaimName];
+
+    if (pld == null) {
+      return <String, dynamic>{}; // No payload
+    } else if (pld is Map<String, dynamic>) {
+      return pld; // Has payload
+    } else {
+      return <String, dynamic>{}; // No payload
+      // Note: legacy code only supports Map as a payload, even though new code
+      // may set the 'pld' claim to other types of values.
+    }
   }
 
   /// Returns Dart built-in JSON representation of JWT claim set
@@ -463,9 +486,15 @@ class JwtClaim {
 
     // Include Registered Claim Names
 
-    if (issuer is String) body['iss'] = issuer;
-    if (subject is String) body['sub'] = subject;
-    if (audience.length != 0) body['aud'] = audience;
+    if (issuer is String) {
+      body['iss'] = issuer;
+    }
+    if (subject is String) {
+      body['sub'] = subject;
+    }
+    if (audience.isNotEmpty) {
+      body['aud'] = audience;
+    }
 
     if (expiry != null) {
       body['exp'] = _numericDateEncode(expiry);
@@ -477,11 +506,13 @@ class JwtClaim {
       body['iat'] = _numericDateEncode(issuedAt);
     }
 
-    if (jwtId is String) body['jti'] = jwtId;
+    if (jwtId is String) {
+      body['jti'] = jwtId;
+    }
 
     // Include non-registered claims
 
-    _otherClaims.forEach((k, v) {
+    _otherClaims.forEach((k, dynamic v) {
       assert(!body.containsKey(k));
       if (v is Map) {
         body[k] = _splayify(v); // Map value
@@ -506,13 +537,14 @@ class JwtClaim {
   /// tokens previously received/saved/created), otherwise the current time of
   /// when this method is invoked is used.
   ///
-  /// For consistency, validation fails if the Expiration Time Claim is before
-  /// the Not Before Claim, or the Expiration Time Claim is before the Issued At
-  /// Claim.
+  /// To ensure the claim set is sensible, validation will fail if the
+  /// _Expiration Time Claim_ is before the _Not Before Claim_, or the
+  /// _Expiration Time Claim_ is before the _Issued At Claim_.
   ///
   /// An [allowedClockSkew] can be provided to allow for differences between
   /// the clock of the system that created the token and the clock of the system
-  /// doing the validation. By default, no clock skew is allowed for.
+  /// doing the validation. By default, there is no allowance for clock skew
+  /// (i.e. a duration of zero).
 
   void validate(
       {String issuer,
@@ -521,7 +553,7 @@ class JwtClaim {
       DateTime currentTime}) {
     // Ensure clock skew is never negative
 
-    allowedClockSkew = allowedClockSkew.abs();
+    final absClockSkew = allowedClockSkew.abs();
 
     // Check Issuer Claim
     if (issuer is String && this.issuer != issuer)
@@ -555,14 +587,13 @@ class JwtClaim {
     // Check Expiration Time Claim
     // Reject the token if the current time is at or after the Expiry time.
     // (At exactly Expiry is also rejected.)
-    if (expiry != null && !cTime.isBefore(expiry.add(allowedClockSkew)))
+    if (expiry != null && !cTime.isBefore(expiry.add(absClockSkew)))
       throw JwtException.tokenExpired;
 
     // Check Not Before Claim
     // Reject token if the current time is before the Not Before time.
     // (At exactly Not Before is ok.)
-    if (notBefore != null &&
-        notBefore.subtract(allowedClockSkew).isAfter(cTime))
+    if (notBefore != null && notBefore.subtract(absClockSkew).isAfter(cTime))
       throw JwtException.tokenNotYetAccepted;
 
     // No checks for Issued At Claim
@@ -667,48 +698,56 @@ class JwtClaim {
 
 String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
   final hmac = new Hmac(sha256, hmacKey.codeUnits);
-  final SplayTreeMap<String, String> header =
-      new SplayTreeMap.from({"alg": "HS256", "typ": "JWT"});
+  final header = new SplayTreeMap<String, String>.from(
+      <String, String>{'alg': 'HS256', 'typ': 'JWT'}); // TODO: why a SplayTree?
 
-  final encHdr = B64urlEncRFC7515.encodeUtf8(json.encode(header));
-  final encPld = B64urlEncRFC7515.encodeUtf8(json.encode(claimSet.toJson()));
+  final encHdr = B64urlEncRfc7515.encodeUtf8(json.encode(header));
+  final encPld = B64urlEncRfc7515.encodeUtf8(json.encode(claimSet.toJson()));
 
+  // ignore: prefer_interpolation_to_compose_strings
   final data = encHdr + '.' + encPld;
 
-  final encSig = B64urlEncRFC7515.encode(hmac.convert(data.codeUnits).bytes);
+  final encSig = B64urlEncRfc7515.encode(hmac.convert(data.codeUnits).bytes);
 
+  // ignore: prefer_interpolation_to_compose_strings
   return data + '.' + encSig;
 }
 
-/// Verifies that signature and extracts the claim set from a JWT.
+/// Verifies the signature and extracts the claim set from a JWT.
 ///
-/// Returns the decoded claim set.
+/// The signature is verified using the [hmacKey] with the HMAC SHA-256
+/// algorithm.
 ///
-/// Normally, if IssuedAt and Expiry claims are not present, default values
-/// will be generated for them and set in the the claim set that is returned.
+/// Normally, if either the _Issued At Claim_ and/or _Expiration Time Claim_
+/// are not present, default values are assigned to them.
 /// This behaviour can be disabled by setting [defaultIatExp] to false.
 /// See the constructor [JwtClaim] for details about what default values are
-/// used.
+/// used and how [maxAge] is used.
 ///
-///     final JwtClaim decClaimSet = verifyJwtHS256Signature(token, key);
+/// Throws a [JwtException] if the signature does not verify or the
+/// JWT is invalid.
+///
+///     final decClaimSet = verifyJwtHS256Signature(token, key);
 ///     print(decClaimSet.toJson());
 
 JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
     {bool defaultIatExp = true, Duration maxAge = JwtClaim._defaultMaxAge}) {
   try {
     final hmac = new Hmac(sha256, hmacKey.codeUnits);
-    final List<String> parts = token.split(".");
+    final parts = token.split('.');
 
-    if (parts.length != 3) throw JwtException.invalidToken;
+    if (parts.length != 3) {
+      throw JwtException.invalidToken;
+    }
 
     // Decode header and payload
 
-    final headerString = B64urlEncRFC7515.decodeUtf8(parts[0]);
-    final payloadString = B64urlEncRFC7515.decodeUtf8(parts[1]);
+    final headerString = B64urlEncRfc7515.decodeUtf8(parts[0]);
+    final payloadString = B64urlEncRfc7515.decodeUtf8(parts[1]);
 
     // Verify header
 
-    final header = json.decode(headerString);
+    final dynamic header = json.decode(headerString);
     if (header is! Map)
       throw JwtException.invalidToken; // is JSON, but not a JSON object
 
@@ -722,8 +761,10 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
 
     // Verify signature: calculate signature and compare to token's signature
 
+    // ignore: prefer_interpolation_to_compose_strings
     final data = parts[0] + '.' + parts[1];
-    final calcSig = B64urlEncRFC7515.encode(hmac.convert(data.codeUnits).bytes);
+
+    final calcSig = B64urlEncRfc7515.encode(hmac.convert(data.codeUnits).bytes);
 
     if (calcSig != parts[2]) {
       throw JwtException.hashMismatch; // signature does not match calculated
@@ -731,12 +772,13 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
 
     // Convert payload into a claim set
 
-    final payload = json.decode(payloadString);
-    if (payload is! Map)
+    final dynamic payload = json.decode(payloadString);
+    if (payload is Map) {
+      return new JwtClaim.fromMap(payload,
+          defaultIatExp: defaultIatExp, maxAge: maxAge);
+    } else {
       throw JwtException.invalidToken; // is JSON, but not a JSON object
-
-    return new JwtClaim.fromMap(payload,
-        defaultIatExp: defaultIatExp, maxAge: maxAge);
+    }
   } on FormatException {
     // Can be caused by:
     //   - header or payload parts are not Base64url Encoding
@@ -747,16 +789,16 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
 }
 
 SplayTreeMap _splayify(Map map) {
-  var data = {};
-  map.forEach((k, v) {
+  final data = <dynamic, dynamic>{};
+  map.forEach((dynamic k, dynamic v) {
     data[k] = _splay(v);
   });
-  return new SplayTreeMap.from(data);
+  return new SplayTreeMap<dynamic, dynamic>.from(data);
 }
 
-_splay(value) {
+dynamic _splay(dynamic value) {
   if (value is Iterable) {
-    return value.map(_splay).toList();
+    return value.map<dynamic>(_splay).toList();
   } else if (value is Map)
     return _splayify(value);
   else
@@ -766,37 +808,35 @@ _splay(value) {
 //================================================================
 /// Implements "Base64url Encoding" as defined RFC 7515.
 ///
-/// Note: the [base64Url] constant from _dart:convert_ implements "base64url"
-/// from RFC 4648, which is NOT THE SAME as "Base64url Encoding" as defined by
+/// Note: the `base64Url` constant from _dart:convert_ implements "base64url"
+/// from RFC 4648, which is different from the "Base64url Encoding" defined by
 /// RFC 7515.
 ///
-/// Essentially, _Base64url Encoding_ is "base64url" without the padding
-/// <https://tools.ietf.org/html/rfc7515#appendix-C>.
+/// Essentially, _Base64url Encoding_ is "base64url" without any padding
+/// characters. For more information, see Appendix C of
+/// [RFC 7515](https://tools.ietf.org/html/rfc7515#appendix-C).
 
-class B64urlEncRFC7515 {
-  /// Encode bytes using _Base64url Encoding_.
+class B64urlEncRfc7515 {
+  B64urlEncRfc7515._preventDefaultConstructor();
 
-  static String encode(List<int> octets) {
-    final e = base64Url.encode(octets).replaceAll('=', ''); // padding removed
+  /// Encodes a sequence of bytes using _Base64url Encoding_.
 
-    assert(!e.contains('+')); // check it is using the URL safe alphabet
-    assert(!e.contains('/')); // check it is using the URL safe alphabet
+  static String encode(List<int> octets) =>
+      base64Url.encode(octets).replaceAll('=', ''); // padding removed
 
-    return e;
-  }
-
-  /// Decodes a _Base64url Encoding_ string value into bytes.
+  /// Decodes a _Base64url Encoding_ string value into a sequence of bytes.
   ///
-  /// Throws [FormatException] if [str] is not valid Base64url Encoding.
+  /// Throws [FormatException] if the [encoded] string is not valid
+  /// Base64url Encoding.
 
   static List<int> decode(String encoded) {
     // Detect incorrect "base64url" or normal "base64" encoding
 
     if (encoded.contains('=')) {
-      throw FormatException; // unexpected padding character
+      throw const FormatException('Base64url Encoding: padding not allowed');
     }
     if (encoded.contains('+') || encoded.contains('/')) {
-      throw FormatException; // unexpected character not filename safe
+      throw const FormatException('Base64url Encoding: + and / not allowed');
     }
 
     // Add padding, if necessary
@@ -812,7 +852,7 @@ class B64urlEncRFC7515 {
         output += '=';
         break;
       default:
-        throw FormatException; // bad length for a Base64url Encoding
+        throw const FormatException('Base64url Encoding: invalid length');
     }
 
     // Decode
@@ -828,22 +868,18 @@ class B64urlEncRFC7515 {
 
   /// Encodes a String into a _Base64url Encoding_ value.
   ///
-  /// The [str] is encoded using UTF-8, and then those bytes are encoded using
-  /// Base64url Encoding.
+  /// The [str] is encoded using UTF-8, and then that sequence of bytes are
+  /// encoded using _Base64url Encoding_.
 
-  static String encodeUtf8(String str) {
-    return encode(utf8.encode(str));
-  }
+  static String encodeUtf8(String str) => encode(utf8.encode(str));
 
   /// Decodes a _Base64url Encoding_ value into a String.
   ///
-  /// The [str] is decoded as a _Base64url Encoding_, and then those bytes
-  /// are interpreted as a UTF-8 encoded string.
+  /// The [encoded] string is decoded as a _Base64url Encoding_, and then those
+  /// sequence of bytes are interpreted as a UTF-8 encoded string.
   ///
   /// Throws [FormatException] if it is not Base64url Encoding or does not
   /// contain a UTF-8 encoded string.
 
-  static String decodeUtf8(String encoded) {
-    return utf8.decode(decode(encoded));
-  }
+  static String decodeUtf8(String encoded) => utf8.decode(decode(encoded));
 }

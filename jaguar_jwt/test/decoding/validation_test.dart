@@ -3,7 +3,7 @@ library test.validation;
 import 'package:test/test.dart';
 import 'package:jaguar_jwt/jaguar_jwt.dart';
 
-main() {
+void main() {
   group('Validation', () {
     //================================================================
 
@@ -54,9 +54,10 @@ main() {
       test('Audience found', () {
         claimSetAudience1.validate(audience: audience1);
 
-        claimSetAudienceN.validate(audience: audience1);
-        claimSetAudienceN.validate(audience: audience2);
-        claimSetAudienceN.validate(audience: audience3);
+        claimSetAudienceN
+          ..validate(audience: audience1)
+          ..validate(audience: audience2)
+          ..validate(audience: audience3);
       });
 
       test('Audience not found', () {
@@ -294,7 +295,8 @@ main() {
               issuedAt: issuedAt,
               notBefore: notBefore,
               expiry: notBefore.subtract(smallDelay));
-          expect(() => weirdClaimSet.validate(),
+
+          expect(weirdClaimSet.validate,
               throwsA(equals(JwtException.invalidToken)));
         });
 
@@ -302,7 +304,7 @@ main() {
           // Token is never valid: as soon as it becomes accepted it also expires
           final weirdClaimSet = new JwtClaim(
               issuedAt: issuedAt, notBefore: notBefore, expiry: notBefore);
-          expect(() => weirdClaimSet.validate(),
+          expect(weirdClaimSet.validate,
               throwsA(equals(JwtException.invalidToken)));
         });
 
@@ -312,7 +314,7 @@ main() {
               issuedAt: issuedAt,
               notBefore: notBefore,
               expiry: issuedAt.subtract(smallDelay));
-          expect(() => weirdClaimSet.validate(),
+          expect(weirdClaimSet.validate,
               throwsA(equals(JwtException.invalidToken)));
         });
 
@@ -320,7 +322,7 @@ main() {
           // Who would issue a token that immediately expires?
           final weirdClaimSet = new JwtClaim(
               issuedAt: issuedAt, notBefore: notBefore, expiry: issuedAt);
-          expect(() => weirdClaimSet.validate(),
+          expect(weirdClaimSet.validate,
               throwsA(equals(JwtException.invalidToken)));
         });
       });
@@ -335,7 +337,14 @@ main() {
           // The notBefore time claim is redundant, since it is the same
           // value as the IssuedAt time claim. But it is a valid claim to make.
           final readyWhenIssuedClaimSet = new JwtClaim(
-              issuedAt: issuedAt, notBefore: issuedAt, expiry: expiry);
+              subject: 'testing.notBefore-at-issuedAt',
+              expiry: expiry,
+              notBefore: issuedAt,
+              issuedAt: issuedAt);
+          expect(readyWhenIssuedClaimSet.expiry, isNotNull);
+          expect(readyWhenIssuedClaimSet.notBefore, isNotNull);
+          expect(readyWhenIssuedClaimSet.issuedAt, isNotNull);
+
           readyWhenIssuedClaimSet.validate(
               currentTime: expiry.subtract(smallDelay)); // expect no exception
         });
@@ -351,9 +360,14 @@ main() {
           // "badly written" systems.
 
           final readyBeforeIssuedClaimSet = new JwtClaim(
-              issuedAt: issuedAt,
+              subject: 'testing.notBefore-before-issuedAt',
+              expiry: expiry,
               notBefore: issuedAt.subtract(smallDelay),
-              expiry: expiry);
+              issuedAt: issuedAt);
+          expect(readyBeforeIssuedClaimSet.expiry, isNotNull);
+          expect(readyBeforeIssuedClaimSet.notBefore, isNotNull);
+          expect(readyBeforeIssuedClaimSet.issuedAt, isNotNull);
+
           readyBeforeIssuedClaimSet.validate(
               currentTime: expiry.subtract(smallDelay)); // expect no exception
         });

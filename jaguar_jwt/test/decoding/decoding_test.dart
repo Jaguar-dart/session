@@ -3,9 +3,9 @@ library test.decoding;
 import 'package:test/test.dart';
 import 'package:jaguar_jwt/jaguar_jwt.dart';
 
-final key = 'secret';
+const String key = 'secret';
 
-main() {
+void main() {
   group('Decoding', () {
     // Test JWT decoding using pre-encoded JWT values.
 
@@ -36,12 +36,12 @@ main() {
       final exp = new DateTime.utc(2011, 03, 22, 18, 43); // 1300819380
 
       // Note: this secret is not a UTF-8 string
-      final hmacKey = String.fromCharCodes(B64urlEncRFC7515.decode(k));
+      final hmacKey = String.fromCharCodes(B64urlEncRfc7515.decode(k));
 
       // Verify signature
 
-      final JwtClaim claimSet =
-          verifyJwtHS256Signature(token, hmacKey, defaultIatExp: false);
+      final claimSet = verifyJwtHS256Signature(token, hmacKey, defaultIatExp: false);
+      expect(claimSet, isNotNull);
 
       // Validate the claim set
 
@@ -80,6 +80,7 @@ main() {
             'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..'
             'iE8S5laiOzOYJxr411Fw2HrI9I-n2F8MREyuXFwqCDo',
       };
+      assert(badTokens.isNotEmpty);
 
       badTokens.forEach((desc, token) {
         expect(() => verifyJwtHS256Signature(token, secret),
@@ -99,7 +100,7 @@ main() {
       final token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.'
           'e30.'
           'mwiDnq8rTFp5Oyy5i7pT8qktTB4tZOAfiJXTEbEqn2g';
-      assert(B64urlEncRFC7515.decodeUtf8(token.split('.')[1]) == '{}');
+      assert(B64urlEncRfc7515.decodeUtf8(token.split('.')[1]) == '{}');
 
       final claimSet =
           verifyJwtHS256Signature(token, secret, defaultIatExp: false);
@@ -193,7 +194,8 @@ main() {
 
       // Verify the signature
 
-      final JwtClaim claimSet = verifyJwtHS256Signature(token, secret);
+      final claimSet = verifyJwtHS256Signature(token, secret);
+      expect(claimSet, isNotNull);
 
       // Validate the claim set
 
@@ -220,13 +222,13 @@ main() {
           audience: <String>[
             'audience.example.com'
           ],
-          otherClaims: {
+          otherClaims: <String,dynamic>{
             'pld': {'foo': 'bar'}
           });
 
       final correctSecret = 's3cr3t';
       final wrongSecret = 'S3cr3t'; // wrong case for first character
-      String token = issueJwtHS256(claimSet, correctSecret);
+      final token = issueJwtHS256(claimSet, correctSecret);
 
       test('Correct secret verifies', () {
         expect(verifyJwtHS256Signature(token, correctSecret),
@@ -242,7 +244,7 @@ main() {
       test('Tampered header', () {
         // Tamper with the header so its checksum does not match the signature
 
-        final List<String> parts = token.split(".");
+        final parts = token.split('.');
         assert(parts.length == 3);
 
         const goodHeader = '{"alg":"HS256","typ":"JWT"}'; // control value
@@ -252,7 +254,7 @@ main() {
         // Probably the only way the header could differ is that order of the
         // members is different (i.e. `{"typ":"JWT","alg":"HS256"}`) since
         // order is not significant in a JSON object.
-        assert(B64urlEncRFC7515.decodeUtf8(parts[0]) == goodHeader,
+        assert(B64urlEncRfc7515.decodeUtf8(parts[0]) == goodHeader,
             'assumption about generated JWT header is wrong');
 
         // Note: verifyJwtHS256Signature checks the header values before
@@ -280,7 +282,7 @@ main() {
 
           goodHeader: null // control
         }.forEach((header, expectedException) {
-          final newHead = B64urlEncRFC7515.encodeUtf8(header);
+          final newHead = B64urlEncRfc7515.encodeUtf8(header);
           final tamperedToken = [newHead, parts[1], parts[2]].join('.');
 
           if (expectedException != null) {
@@ -297,7 +299,7 @@ main() {
               expect(verifyJwtHS256Signature(tamperedToken, correctSecret),
                   const TypeMatcher<JwtClaim>(),
                   reason: 'control case failed with header=$header');
-            } catch (e) {
+            } on Exception catch (e) {
               fail('control case failed (header=$header): threw: $e');
             }
           }
@@ -309,15 +311,15 @@ main() {
       test('Tampered body', () {
         // Tamper with the body so its checksum does not match the signature
 
-        final List<String> parts = token.split(".");
+        final parts = token.split('.');
         assert(parts.length == 3);
 
-        final body = B64urlEncRFC7515.decodeUtf8(parts[1]);
+        final body = B64urlEncRfc7515.decodeUtf8(parts[1]);
         final t = body.replaceAll('"pld":{"foo":"bar"}', '"pld":{"foo":"baz"}');
         expect(t, isNot(equals(body)),
             reason: 'expected substring was not in payload');
 
-        final tamperedEncoding = B64urlEncRFC7515.encodeUtf8(t);
+        final tamperedEncoding = B64urlEncRfc7515.encodeUtf8(t);
         expect(tamperedEncoding, isNot(equals(parts[1])),
             reason: 'tampering did not modify the encoded payload');
 
@@ -335,13 +337,13 @@ main() {
       test('Tampered signature', () {
         // Tamper with the signature
 
-        final List<String> parts = token.split(".");
+        final parts = token.split('.');
         assert(parts.length == 3);
 
         // Try tampering with different bits in the signature
 
         for (var x = 0; x < 3; x++) {
-          final sigBytes = B64urlEncRFC7515.decode(parts[2]);
+          final sigBytes = B64urlEncRfc7515.decode(parts[2]);
           switch (x) {
             case 0:
               sigBytes[0] ^= 0x80; // flip MSB of first byte
@@ -357,7 +359,7 @@ main() {
               break;
           }
 
-          final tamperedSig = B64urlEncRFC7515.encode(sigBytes);
+          final tamperedSig = B64urlEncRfc7515.encode(sigBytes);
           expect(tamperedSig != parts[2], isTrue); // tampering did not change
 
           final tamperedToken = [parts[0], parts[1], tamperedSig].join('.');

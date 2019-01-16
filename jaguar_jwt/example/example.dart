@@ -2,7 +2,7 @@ import 'dart:math';
 
 import 'package:jaguar_jwt/jaguar_jwt.dart';
 
-const sharedSecret = 's3cr3t';
+const String sharedSecret = 's3cr3t';
 
 void main() {
   final jwt = senderCreatesJwt();
@@ -17,7 +17,7 @@ String senderCreatesJwt() {
       subject: 'kleak',
       audience: <String>['client1.example.com', 'client2.example.com'],
       jwtId: _randomString(32),
-      otherClaims: {
+      otherClaims: <String, dynamic>{
         'typ': 'authnresponse',
         'pld': {'k': 'v'}
       },
@@ -27,30 +27,50 @@ String senderCreatesJwt() {
 
   final token = issueJwtHS256(claimSet, sharedSecret);
 
-  print('jwt = "$token"');
+  print('JWT: "$token"\n');
 
   return token;
 }
 
 void receiverProcessesJwt(String token) {
-  // Verify the signature in the JWT and extract its claim set
+  try {
+    // Verify the signature in the JWT and extract its claim set
+    final decClaimSet = verifyJwtHS256Signature(token, sharedSecret);
+    print(decClaimSet.toJson());
 
-  final JwtClaim decClaimSet = verifyJwtHS256Signature(token, sharedSecret);
+    // Validate the claim set
 
-  print(decClaimSet.toJson());
+    decClaimSet.validate(issuer: 'teja', audience: 'client2.example.com');
 
-  // Validate the claim set
+    // Use values from claim set
 
-  decClaimSet.validate(issuer: 'teja', audience: 'client2.example.com');
-
-  assert(decClaimSet.subject == 'kleak');
-  assert(decClaimSet.jwtId.isNotEmpty); // should check for uniqueness
+    if (decClaimSet.subject != null) {
+      print('JWT_ID: "${decClaimSet.jwtId}"');
+    }
+    if (decClaimSet.jwtId != null) {
+      print('subject: "${decClaimSet.subject}"');
+    }
+    if (decClaimSet.issuedAt != null) {
+      print('iat: ${decClaimSet.issuedAt}');
+    }
+    if (decClaimSet.containsKey('typ')) {
+      dynamic v = decClaimSet['typ'];
+      if (v is String) {
+        print('typ: "$v"');
+      } else {
+        print('Error: unexpected type for "typ" claim');
+      }
+    }
+  } on JwtException catch (e) {
+    print('Error: bad JWT: $e');
+  }
 }
 
-const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 String _randomString(int length) {
+  const chars =
+      '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
   final rnd = new Random(new DateTime.now().millisecondsSinceEpoch);
-  var buf = new StringBuffer();
+  final buf = new StringBuffer();
 
   for (var x = 0; x < length; x++) {
     buf.write(chars[rnd.nextInt(chars.length)]);

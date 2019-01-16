@@ -5,9 +5,9 @@ import 'dart:convert';
 import 'package:test/test.dart';
 import 'package:jaguar_jwt/jaguar_jwt.dart';
 
-final key = 'secret';
+const String key = 'secret';
 
-main() {
+void main() {
 
   group('Encoding', () {
     test('JWS example from RFC 7515', () {
@@ -33,14 +33,14 @@ main() {
       final exp = new DateTime.utc(2011, 03, 22, 18, 43); // 1300819380
 
       // Note: this secret is not a UTF-8 string
-      final hmacKey = String.fromCharCodes(B64urlEncRFC7515.decode(k));
+      final hmacKey = String.fromCharCodes(B64urlEncRfc7515.decode(k));
 
       // Create JWT
 
       final claimSet = new JwtClaim(
           issuer: issuer,
           expiry: exp,
-          otherClaims: {'http://example.com/is_root': true},
+          otherClaims: <String,dynamic>{'http://example.com/is_root': true},
           defaultIatExp: false);
       final token = issueJwtHS256(claimSet, hmacKey);
 
@@ -62,25 +62,25 @@ main() {
 
       // Check header
 
-      final expectedHeaderStr = B64urlEncRFC7515.decodeUtf8(expectedParts[0]);
-      final actualHeaderStr = B64urlEncRFC7515.decodeUtf8(parts[0]);
+      final expectedHeaderStr = B64urlEncRfc7515.decodeUtf8(expectedParts[0]);
+      final actualHeaderStr = B64urlEncRfc7515.decodeUtf8(parts[0]);
       // print('Header produced by "jaguar_jwt": $actualHeaderStr');
       // print('Header from example in RFC 7515: $expectedHeaderStr');
 
-      final expectedHeaderJson = json.decode(expectedHeaderStr);
-      final actualHeaderJson = json.decode(actualHeaderStr);
+      final dynamic expectedHeaderJson = json.decode(expectedHeaderStr);
+      final dynamic actualHeaderJson = json.decode(actualHeaderStr);
 
       expect(actualHeaderJson, equals(expectedHeaderJson));
 
       // Check payload
 
-      final expectedPayloadStr = B64urlEncRFC7515.decodeUtf8(expectedParts[1]);
-      final actualPayloadStr = B64urlEncRFC7515.decodeUtf8(parts[1]);
+      final expectedPayloadStr = B64urlEncRfc7515.decodeUtf8(expectedParts[1]);
+      final actualPayloadStr = B64urlEncRfc7515.decodeUtf8(parts[1]);
       // print('Payload produced by "jaguar_jwt": $actualPayloadStr');
       // print('Payload from example in RFC 7515: $expectedPayloadStr');
 
-      final expectedPayloadJson = json.decode(expectedPayloadStr);
-      final actualPayloadJson = json.decode(actualPayloadStr);
+      final dynamic expectedPayloadJson = json.decode(expectedPayloadStr);
+      final dynamic actualPayloadJson = json.decode(actualPayloadStr);
 
       expect(actualPayloadJson, equals(expectedPayloadJson));
 
@@ -96,10 +96,10 @@ main() {
         final claimSet = new JwtClaim(
             issuer: 'teja',
             subject: '1234567890',
-            audience: ["admin", "students"],
+            audience: ['admin', 'students'],
             issuedAt: new DateTime.fromMillisecondsSinceEpoch(1481842800000,
                 isUtc: true));
-        String token = issueJwtHS256(claimSet, key);
+        final token = issueJwtHS256(claimSet, key);
         expect(
             token,
             equals('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.'
@@ -169,16 +169,17 @@ main() {
 
       test('Using payload parameter', () {
         // Create a JWT with a 'pld' claim using the legacy "payload" parameter.
+        //
         // NOTE: this approach has been deprecated.
 
         final claimSet = new JwtClaim(
             issuer: 'teja',
             subject: '1234567890',
-            audience: ["admin", "students"],
+            audience: ['admin', 'students'],
             issuedAt: new DateTime.fromMillisecondsSinceEpoch(1481842800000,
                 isUtc: true),
-            payload: {"k": "v"});
-        String token = issueJwtHS256(claimSet, key);
+            payload: <String,dynamic>{'k': 'v'});
+        final token = issueJwtHS256(claimSet, key);
         expect(token, equals(expectedToken));
       });
 
@@ -189,13 +190,13 @@ main() {
         final claimSet = new JwtClaim(
             issuer: 'teja',
             subject: '1234567890',
-            audience: ["admin", "students"],
+            audience: ['admin', 'students'],
             issuedAt: new DateTime.fromMillisecondsSinceEpoch(1481842800000,
                 isUtc: true),
-            otherClaims: {
+            otherClaims: <String,dynamic>{
               'pld': {'k': 'v'}
             });
-        String token = issueJwtHS256(claimSet, key);
+        final token = issueJwtHS256(claimSet, key);
         expect(token, equals(expectedToken));
       });
 
@@ -204,13 +205,14 @@ main() {
             () => new JwtClaim(
                 issuer: 'teja',
                 subject: '1234567890',
-                audience: ["admin", "students"],
+                audience: ['admin', 'students'],
                 issuedAt: new DateTime.fromMillisecondsSinceEpoch(1481842800000,
                     isUtc: true),
-                otherClaims: {
+                otherClaims: <String,dynamic>{
                   'pld': {'k': 'v'}
                 },
-                payload: {"k": "v"} // with otherClaims['pld'] is not allowed
+                // ignore: all
+                payload: <String,dynamic>{'k': 'v'} // conflicts otherClaims
                 ),
             throwsA(const TypeMatcher<ArgumentError>()));
       });
@@ -222,7 +224,7 @@ main() {
         const mapValueNested = {
           'alpha': true,
           'beta': [1, 2, 3],
-          'gamma': {'w': 0, 'x': 0.0, 'y': 'Zero', 'z': []},
+          'gamma': {'w': 0, 'x': 0.0, 'y': 'Zero', 'z': <Object>[]},
           'delta': [
             {'foo': 'bar'},
             {'bar': 'baz'}
@@ -233,7 +235,7 @@ main() {
           },
         };
 
-        final source = new JwtClaim(issuer: 'issuer.example.com', otherClaims: {
+        final source = new JwtClaim(issuer: 'issuer.example.com', otherClaims: <String,dynamic>{
           'nullValue': null,
           'boolValue0': false,
           'boolValue1': true,
@@ -247,7 +249,7 @@ main() {
           'stringValueWithSpaces': strWithSpaces,
           'stringValueWithUnicode': strWithUnicode,
           'listValue': [0, 1, 2, 3],
-          'mapValueEmpty': {},
+          'mapValueEmpty': <int,bool>{},
           'mapValueMixed': {'foo': 1, 'bar': 'string'},
           'mapValueNested': mapValueNested,
         });
@@ -270,7 +272,7 @@ main() {
         expect(claimSet['stringValueWithSpaces'], equals(strWithSpaces));
         expect(claimSet['stringValueWithUnicode'], equals(strWithUnicode));
         expect(claimSet['listValue'], equals([0, 1, 2, 3]));
-        expect(claimSet['mapValueEmpty'], equals({}));
+        expect(claimSet['mapValueEmpty'], equals(<int,bool>{}));
         expect(claimSet['mapValueMixed'], equals({'bar': 'string', 'foo': 1}));
         expect(claimSet['mapValueNested'], equals(mapValueNested));
 

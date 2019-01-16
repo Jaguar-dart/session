@@ -7,6 +7,7 @@
 + Added more validation unit tests.
 + Fixed generation of JWT to use correct Base64url Encoding.
 + Added general support for non-registered claims.
++ Tidy up for static analysis and Dart linter.
 
 ## 2.1.2
 
