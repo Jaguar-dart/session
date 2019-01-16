@@ -5,7 +5,7 @@ import 'decoding/decoding_test.dart' as decoding;
 import 'decoding/validation_test.dart' as validation;
 import 'encode/encode_test.dart' as encode;
 
-main() {
+void main() {
   decoding.main();
   encode.main();
   validation.main();

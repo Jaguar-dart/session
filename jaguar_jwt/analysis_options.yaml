@@ -4,9 +4,17 @@
 #   https://www.dartlang.org/guides/language/analysis-options
 
 analyzer:
-  exclude:
-    - path/to/excluded/files/**
-# linter:
-#   rules:
-#     # see catalog here: http://dart-lang.github.io/linter/lints/
-#     - hash_and_equals
+  strong-mode:
+    implicit-casts: false
+    implicit-dynamic: false
+
+linter:
+  rules:
+    # see catalog here: http://dart-lang.github.io/linter/lints/
+    - always_put_control_body_on_new_line
+    - camel_case_types
+    # - omit_local_variable_types
+    - prefer_single_quotes
+    - public_member_api_docs
+    - sort_constructors_first
+    - type_annotate_public_apis
