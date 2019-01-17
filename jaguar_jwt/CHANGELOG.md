@@ -11,6 +11,7 @@
 + Implemented toString method for JwtClaim.
 + Allow for customized checking of the JWT header.
 + Fixed use of _splayify/_spaly in toJson and changed dynamic to Object.
++ Improved format of output produced by JwtClaim.toString().
 
 ## 2.1.2
 

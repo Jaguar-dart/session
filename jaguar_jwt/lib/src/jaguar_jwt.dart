@@ -616,12 +616,74 @@ class JwtClaim {
   String toString() {
     final buf = StringBuffer('{\n');
 
+    var hadPrev = false;
     for (var claimName in claimNames(includeRegisteredClaims: true)) {
-      buf..write('  $claimName: ')..write(this[claimName])..write('\n');
+      if (hadPrev) {
+        buf.write(',\n');
+      }
+      buf.write(_toStringIndent);
+      _toStringDump(claimName, buf);
+      buf.write(': ');
+      _toStringDump(this[claimName], buf, 1);
+      hadPrev = true;
+    }
+    if (hadPrev) {
+      buf.write('\n');
     }
     buf.write('}');
 
     return buf.toString();
+  }
+
+  static const String _toStringIndent = '  ';
+
+  static void _toStringDump(Object value, StringBuffer buf, [int indent = 0]) {
+    if (value is Iterable<Object>) {
+      // Dump an Iterable
+      buf.write('[\n');
+      var hadPrev = false;
+      for (var v in value) {
+        if (hadPrev) {
+          buf.write(',\n');
+        }
+        buf.write(_toStringIndent * (indent + 1));
+        _toStringDump(v, buf, indent + 1);
+        hadPrev = true;
+      }
+      if (hadPrev) {
+        buf.write('\n');
+      }
+      buf..write(_toStringIndent * (indent))..write(']');
+    } else if (value is Map) {
+      // Dump a Map
+      buf.write('{\n');
+      var hadPrev = false;
+      for (var k in value.keys) {
+        if (hadPrev) {
+          buf.write(',\n');
+        }
+        buf.write(_toStringIndent * (indent + 1));
+        _toStringDump(k, buf, 0);
+        buf.write(': ');
+        _toStringDump(value[k], buf, indent + 1);
+        hadPrev = true;
+      }
+      if (hadPrev) {
+        buf.write('\n');
+      }
+      buf..write(_toStringIndent * (indent))..write('}');
+    } else if (value is String) {
+      // Dump a String value
+      final escValue = value..replaceAll('\\', '\\\\')..replaceAll('"', '\\"');
+      buf.write('"$escValue"');
+    } else if (value is DateTime) {
+      // Dump a DateTime value
+      buf.write('<$value>');
+      // buf.write('DateTime.parse("$value")');
+    } else {
+      // Dump some other
+      buf.write(value);
+    }
   }
 
   //================================================================
