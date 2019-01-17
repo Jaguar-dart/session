@@ -354,7 +354,7 @@ class JwtClaim {
   final _otherClaims = <String, Object>{};
 
   //================================================================
-  // Methods
+  // Access methods
 
   /// Indicates if a claim exists or not.
   ///
@@ -481,53 +481,7 @@ class JwtClaim {
     }
   }
 
-  /// Converts the claim set into a Map suitable for encoding as JSON.
-
-  Map toJson() {
-    final body = new SplayTreeMap<String, Object>(); // keys are sorted
-
-    // Include Registered Claim Names
-
-    if (issuer is String) {
-      body['iss'] = issuer;
-    }
-    if (subject is String) {
-      body['sub'] = subject;
-    }
-    if (audience.isNotEmpty) {
-      body['aud'] = audience;
-    }
-
-    if (expiry != null) {
-      body['exp'] = _numericDateEncode(expiry);
-    }
-    if (notBefore != null) {
-      body['nbf'] = _numericDateEncode(notBefore);
-    }
-    if (issuedAt != null) {
-      body['iat'] = _numericDateEncode(issuedAt);
-    }
-
-    if (jwtId is String) {
-      body['jti'] = jwtId;
-    }
-
-    // Include non-registered claims
-
-    _otherClaims.forEach((k, v) {
-      assert(!body.containsKey(k));
-      try {
-        body[k] = _splay(v);
-      } on FormatException catch (e) {
-        throw new JsonUnsupportedObjectError('JWT claim: $k (${e.message})');
-      }
-    });
-
-    // Return result
-
-    return body;
-  }
-
+  //================================================================
   /// Validates the JWT claim set.
   ///
   /// Checks the for the [issuer] and [audience] and validates the Expiration
@@ -607,6 +561,67 @@ class JwtClaim {
     // not IssuedAt.
 
     // No checks for JWT ID Claim: the application is supposed to do that
+  }
+
+  //================================================================
+  // Conversion methods
+
+  /// Converts the claim set into a Map suitable for encoding as JSON.
+
+  Map toJson() {
+    final body = new SplayTreeMap<String, Object>();
+
+    // Include any registered claims
+
+    if (issuer is String) {
+      body['iss'] = issuer;
+    }
+    if (subject is String) {
+      body['sub'] = subject;
+    }
+
+    // Support for the special case would be nice, but it will change the
+    // behaviour from what jaguar_jwt v2.1.5 did.
+    // <https://tools.ietf.org/html/rfc7519#section-4.1.3>
+    //
+    /* Uncomment to support 'aud' special case
+    if (audience.length == 1) {
+      body['aud'] = audience.first; // special case: single string value
+    } else
+    */
+
+    if (audience.isNotEmpty) {
+      body['aud'] = audience; // general case: array of strings
+    }
+
+    if (expiry != null) {
+      body['exp'] = _numericDateEncode(expiry);
+    }
+    if (notBefore != null) {
+      body['nbf'] = _numericDateEncode(notBefore);
+    }
+    if (issuedAt != null) {
+      body['iat'] = _numericDateEncode(issuedAt);
+    }
+
+    if (jwtId is String) {
+      body['jti'] = jwtId;
+    }
+
+    // Include any non-registered claims
+
+    _otherClaims.forEach((k, v) {
+      assert(!body.containsKey(k));
+      try {
+        body[k] = _splay(v);
+      } on FormatException catch (e) {
+        throw new JsonUnsupportedObjectError('JWT claim: $k (${e.message})');
+      }
+    });
+
+    // Return result (SplayTreeMap means JSON has the keys in sorted order)
+
+    return body;
   }
 
   //----------------------------------------------------------------
