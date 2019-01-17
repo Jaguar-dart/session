@@ -273,7 +273,7 @@ class JwtClaim {
   /// For their defintion, see section 4.1 of
   /// [RFC 7519](https://tools.ietf.org/html/rfc7519#section-4.1).
 
-  static const List<String> registeredClaimNames = [
+  static const List<String> registeredClaimNames = const [
     'iss',
     'sub',
     'aud',
@@ -700,6 +700,9 @@ class JwtClaim {
   }
 }
 
+//================================================================
+// Issuing JWT
+
 /// Issues a HMAC SHA-256 signed JWT.
 ///
 /// Creates a JWT using the [claimSet] for the payload and signing it using
@@ -730,10 +733,50 @@ String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
   return data + '.' + encSig;
 }
 
+//================================================================
+// Processing JWT
+
+/// Header checking function type used by [verifyJwtHS256Signature].
+
+typedef bool JOSEHeaderCheck(Map<dynamic, dynamic> joseHeader);
+
+//----------------------------------------------------------------
+/// Default JOSE Header checker.
+///
+/// Returns true (header is ok) if the 'typ' Header Parameter is absent, or it
+/// is present with the exact value of 'JWT'. Otherwise, false (header is
+/// rejected).
+///
+/// This implementation allows [verifyJwtHS256Signature] to exactly replicate
+/// its previous behaviour.
+///
+/// Note: this check is more restrictive than what RFC 7519 requires, since the
+/// value of 'JWT' is only a recommendation and it is supposed to be case
+/// insensitive. See <https://tools.ietf.org/html/rfc7519#section-5.1>
+
+bool defaultJWTHeaderCheck(Map h) {
+  if (h.containsKey('typ')) {
+    dynamic typ = h['typ'];
+    if (typ is String) {
+      // if (typ.toUpperCase() != 'JWT') { // better
+      if (typ != 'JWT') {
+        return false; // reject: wrong value
+      }
+    } else {
+      return false; // reject: unexpected value type for 'typ'
+    }
+  }
+  return true; // header is ok
+}
+
+//----------------------------------------------------------------
 /// Verifies the signature and extracts the claim set from a JWT.
 ///
 /// The signature is verified using the [hmacKey] with the HMAC SHA-256
 /// algorithm.
+///
+/// The [headerCheck] is an optional function to check the header.
+/// It defaults to [defaultJWTHeaderCheck].
 ///
 /// Normally, if either the _Issued At Claim_ and/or _Expiration Time Claim_
 /// are not present, default values are assigned to them.
@@ -748,7 +791,9 @@ String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
 ///     print(decClaimSet.toJson());
 
 JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
-    {bool defaultIatExp = true, Duration maxAge = JwtClaim._defaultMaxAge}) {
+    {JOSEHeaderCheck headerCheck = defaultJWTHeaderCheck,
+    bool defaultIatExp = true,
+    Duration maxAge = JwtClaim._defaultMaxAge}) {
   try {
     final hmac = new Hmac(sha256, hmacKey.codeUnits);
     final parts = token.split('.');
@@ -762,19 +807,24 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
     final headerString = B64urlEncRfc7515.decodeUtf8(parts[0]);
     final payloadString = B64urlEncRfc7515.decodeUtf8(parts[1]);
 
-    // Verify header
+    // Check header
 
     final dynamic header = json.decode(headerString);
-    if (header is! Map)
-      throw JwtException.invalidToken; // is JSON, but not a JSON object
+    if (header is Map) {
+      // Perform any custom checks on the header
 
-    // TODO: don't check the value, since "JWT" is recommended but not mandatory
-    // <https://tools.ietf.org/html/rfc7519#section-5.1>
-    if (header['typ'] != null && header['typ'] != 'JWT')
-      throw JwtException.invalidToken;
+      if (headerCheck != null && !headerCheck(header)) {
+        throw JwtException.invalidToken;
+      }
 
-    if (header['alg'] != 'HS256')
-      throw JwtException.hashMismatch; // wrong algorithm or missing
+      // Perform mandatory check on the header.
+
+      if (header['alg'] != 'HS256') {
+        throw JwtException.hashMismatch; // missing 'alg' or wrong algorithm
+      }
+    } else {
+      throw JwtException.invalidToken; // header is JSON, but not a JSON object
+    }
 
     // Verify signature: calculate signature and compare to token's signature
 

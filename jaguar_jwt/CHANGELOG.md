@@ -9,6 +9,7 @@
 + Added general support for non-registered claims.
 + Tidy up for static analysis and Dart linter.
 + Implemented toString method for JwtClaim.
++ Allow for customized checking of the JWT header.
 
 ## 2.1.2
 
