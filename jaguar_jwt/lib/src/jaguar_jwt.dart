@@ -88,7 +88,7 @@ class JwtException {
 ///       subject: 'kleak',
 ///       issuer: 'teja',
 ///       audience: <String>['example.com', 'client2.example.com'],
-///       otherClaims: <String,dynamic>{ 'pld': {'k': 'v'} });
+///       otherClaims: <String,Object>{ 'pld': {'k': 'v'} });
 ///
 ///     final token = issueJwtHS256(claimSet, key);
 ///     print(token);
@@ -120,7 +120,7 @@ class JwtClaim {
   /// It is a Map with the Claim Name as the key and the Claim Value as the
   /// value. The value must be something that can be converted into a JSON:
   /// either a scalar (i.e. null, bool, int, double or String), a List, or
-  /// Map<String,dynamic>. The otherClaims parameter cannot be used to set
+  /// Map<String,Object>. The otherClaims parameter cannot be used to set
   /// registered claims, only non-registered claims.
   ///
   /// The `payload` parameter is deprecated. To include a 'pld' claim,
@@ -143,8 +143,8 @@ class JwtClaim {
       DateTime notBefore,
       DateTime issuedAt,
       this.jwtId,
-      Map<String, dynamic> otherClaims,
-      @deprecated Map<String, dynamic> payload,
+      Map<String, Object> otherClaims,
+      @deprecated Map<String, Object> payload,
       bool defaultIatExp = true,
       Duration maxAge: _defaultMaxAge})
       : audience = audience ?? [],
@@ -190,7 +190,7 @@ class JwtClaim {
   ///
   /// Throws [JwtException.invalidToken] if the Map is not suitable.
 
-  factory JwtClaim.fromMap(Map<dynamic, dynamic> data,
+  factory JwtClaim.fromMap(Map<Object, Object> data,
       {bool defaultIatExp = true, Duration maxAge = _defaultMaxAge}) {
     // Note: the map comes from parsing the payload into JSON, so we can't
     // guarantee what the types of its keys and values are.
@@ -201,7 +201,7 @@ class JwtClaim {
         <String, String>{}; // for the three StringOrURI values
     for (var claimName in ['iss', 'sub', 'jti']) {
       if (data.containsKey(claimName)) {
-        final dynamic v = data[claimName];
+        final v = data[claimName];
         if (v is String) {
           singleStringValue[claimName] = v;
         } else {
@@ -213,7 +213,7 @@ class JwtClaim {
     final audienceList = <String>[];
     if (data.containsKey('aud')) {
       // The audience claim appears in the data
-      final dynamic aud = data['aud'];
+      final aud = data['aud'];
       if (aud is String) {
         // Special case when the JWT has one audience
         audienceList.add(aud);
@@ -228,7 +228,6 @@ class JwtClaim {
         }
       } else {
         throw JwtException.invalidToken; // unexpected type for audience
-
       }
     }
 
@@ -238,9 +237,9 @@ class JwtClaim {
 
     // Extract all non-registered claims (including 'pld' if it is in the data)
 
-    final others = <String, dynamic>{};
+    final others = <String, Object>{};
 
-    data.forEach((dynamic k, dynamic v) {
+    data.forEach((k, v) {
       if (k is String) {
         if (!registeredClaimNames.contains(k)) {
           others[k] = v;
@@ -352,7 +351,7 @@ class JwtClaim {
   /// This is a Map where the key is the Claim Name and the value is the claim's
   /// value. The value can be anything that can be converted into JSON.
   /// For example, a scalar value (e.g. null, int or String), a List or Map.
-  final _otherClaims = <String, dynamic>{};
+  final _otherClaims = <String, Object>{};
 
   //================================================================
   // Methods
@@ -404,7 +403,7 @@ class JwtClaim {
   /// no Audience Claim (unlike the [audience] member variable, which will be an
   /// empty list).
 
-  dynamic operator [](String claimName) {
+  Object operator [](String claimName) {
     if (!registeredClaimNames.contains(claimName)) {
       // Non-registered claim
       return _otherClaims[claimName];
@@ -468,23 +467,24 @@ class JwtClaim {
   /// `claimSet.containsKey('pld')` to check if a payload exists or not.
 
   @deprecated
-  Map<String, dynamic> get payload {
-    final dynamic pld = _otherClaims[_legacyPayloadClaimName];
+  Map<String, Object> get payload {
+    final pld = _otherClaims[_legacyPayloadClaimName];
 
     if (pld == null) {
-      return <String, dynamic>{}; // No payload
-    } else if (pld is Map<String, dynamic>) {
+      return <String, Object>{}; // No payload
+    } else if (pld is Map<String, Object>) {
       return pld; // Has payload
     } else {
-      return <String, dynamic>{}; // No payload
+      return <String, Object>{}; // No payload
       // Note: legacy code only supports Map as a payload, even though new code
       // may set the 'pld' claim to other types of values.
     }
   }
 
-  /// Returns Dart built-in JSON representation of JWT claim set
+  /// Converts the claim set into a Map suitable for encoding as JSON.
+
   Map toJson() {
-    final body = <String, dynamic>{};
+    final body = new SplayTreeMap<String, Object>(); // keys are sorted
 
     // Include Registered Claim Names
 
@@ -514,18 +514,18 @@ class JwtClaim {
 
     // Include non-registered claims
 
-    _otherClaims.forEach((k, dynamic v) {
+    _otherClaims.forEach((k, v) {
       assert(!body.containsKey(k));
-      if (v is Map) {
-        body[k] = _splayify(v); // Map value
-      } else {
-        body[k] = v; // scalar value or List
+      try {
+        body[k] = _splay(v);
+      } on FormatException catch (e) {
+        throw new JsonUnsupportedObjectError('JWT claim: $k (${e.message})');
       }
     });
 
     // Return result
 
-    return _splayify(body);
+    return body;
   }
 
   /// Validates the JWT claim set.
@@ -660,7 +660,7 @@ class JwtClaim {
   /// Throws [JwtException.invalidToken] if the value is not the correct type
   /// or is out of range.
 
-  static DateTime _numericDateDecode(dynamic value) {
+  static DateTime _numericDateDecode(Object value) {
     if (value == null) {
       // Absent
       return null;
@@ -708,6 +708,9 @@ class JwtClaim {
 /// Creates a JWT using the [claimSet] for the payload and signing it using
 /// the [hmacKey] with the HMAC SHA-256 algorithm.
 ///
+/// Throws a [JsonUnsupportedObjectError] if any of the Claim Values are not
+/// suitable for a JWT.
+///
 ///     final claimSet = new JwtClaim(
 ///       subject: 'kleak',
 ///       issuer: 'teja',
@@ -718,8 +721,11 @@ class JwtClaim {
 
 String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
   final hmac = new Hmac(sha256, hmacKey.codeUnits);
+
+  // Use SplayTreeMap to ensure ordering in JSON: i.e. alg before typ.
+  // Ordering is not required for JWT: it is deterministic and neater.
   final header = new SplayTreeMap<String, String>.from(
-      <String, String>{'alg': 'HS256', 'typ': 'JWT'}); // TODO: why a SplayTree?
+      <String, String>{'alg': 'HS256', 'typ': 'JWT'});
 
   final encHdr = B64urlEncRfc7515.encodeUtf8(json.encode(header));
   final encPld = B64urlEncRfc7515.encodeUtf8(json.encode(claimSet.toJson()));
@@ -738,7 +744,7 @@ String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
 
 /// Header checking function type used by [verifyJwtHS256Signature].
 
-typedef bool JOSEHeaderCheck(Map<dynamic, dynamic> joseHeader);
+typedef bool JOSEHeaderCheck(Map<Object, Object> joseHeader);
 
 //----------------------------------------------------------------
 /// Default JOSE Header checker.
@@ -754,9 +760,9 @@ typedef bool JOSEHeaderCheck(Map<dynamic, dynamic> joseHeader);
 /// value of 'JWT' is only a recommendation and it is supposed to be case
 /// insensitive. See <https://tools.ietf.org/html/rfc7519#section-5.1>
 
-bool defaultJWTHeaderCheck(Map h) {
+bool defaultJWTHeaderCheck(Map<Object, Object> h) {
   if (h.containsKey('typ')) {
-    dynamic typ = h['typ'];
+    final typ = h['typ'];
     if (typ is String) {
       // if (typ.toUpperCase() != 'JWT') { // better
       if (typ != 'JWT') {
@@ -788,7 +794,7 @@ bool defaultJWTHeaderCheck(Map h) {
 /// JWT is invalid.
 ///
 ///     final decClaimSet = verifyJwtHS256Signature(token, key);
-///     print(decClaimSet.toJson());
+///     print(decClaimSet);
 
 JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
     {JOSEHeaderCheck headerCheck = defaultJWTHeaderCheck,
@@ -809,8 +815,9 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
 
     // Check header
 
+    // ignore: omit_local_variable_types
     final dynamic header = json.decode(headerString);
-    if (header is Map) {
+    if (header is Map<Object, Object>) {
       // Perform any custom checks on the header
 
       if (headerCheck != null && !headerCheck(header)) {
@@ -839,6 +846,7 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
 
     // Convert payload into a claim set
 
+    // ignore: omit_local_variable_types
     final dynamic payload = json.decode(payloadString);
     if (payload is Map) {
       return new JwtClaim.fromMap(payload,
@@ -855,21 +863,38 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
   }
 }
 
-SplayTreeMap _splayify(Map map) {
-  final data = <dynamic, dynamic>{};
-  map.forEach((dynamic k, dynamic v) {
-    data[k] = _splay(v);
+//================================================================
+// Utility functions to recursively create a SplayTreeMap from a Map.
+//
+// This is used by the JWT issuing function to convert Claim Values that are
+// Maps (and Maps nested inside Claim Values) into a SplayTreeMap, so that the
+// JSON that is produced has the member names in alphabetical order.
+//
+// Ordering is not a requirement for JWT, but it makes the token deterministic
+// which is nicer.
+
+SplayTreeMap<String, Object> _splayify(Map<Object, Object> map) {
+  final data = new SplayTreeMap<String, Object>();
+
+  map.forEach((k, v) {
+    if (k is String) {
+      data[k] = _splay(v);
+    } else {
+      throw const FormatException('Map with non-String key');
+    }
   });
-  return new SplayTreeMap<dynamic, dynamic>.from(data);
+
+  return data;
 }
 
-dynamic _splay(dynamic value) {
+Object _splay(Object value) {
   if (value is Iterable) {
-    return value.map<dynamic>(_splay).toList();
-  } else if (value is Map)
+    return value.map<Object>(_splay).toList();
+  } else if (value is Map) {
     return _splayify(value);
-  else
+  } else {
     return value;
+  }
 }
 
 //================================================================

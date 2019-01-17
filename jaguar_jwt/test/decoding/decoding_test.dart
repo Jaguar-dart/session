@@ -40,7 +40,8 @@ void main() {
 
       // Verify signature
 
-      final claimSet = verifyJwtHS256Signature(token, hmacKey, defaultIatExp: false);
+      final claimSet =
+          verifyJwtHS256Signature(token, hmacKey, defaultIatExp: false);
       expect(claimSet, isNotNull);
 
       // Validate the claim set
@@ -222,7 +223,7 @@ void main() {
           audience: <String>[
             'audience.example.com'
           ],
-          otherClaims: <String,dynamic>{
+          otherClaims: <String, Object>{
             'pld': {'foo': 'bar'}
           });
 
@@ -273,7 +274,7 @@ void main() {
           '{"alg":"HS256","typ":"jwt"}': JwtException.invalidToken, // case diff
           '{"alg":"HS256","typ":"Jwt"}': JwtException.invalidToken, // case diff
           '{"alg":"HS256","typ":"JWt"}': JwtException.invalidToken, // case diff
-          // TODO: In RFC 7519, "JWT" is only RECOMMENDED. Other values are OK.
+          // Note: In RFC 7519, "JWT" is only RECOMMENDED. Other values are OK.
 
           // Semantically same JSON, but the hash is different
           '{"typ":"JWT","alg":"HS256"}': JwtException.hashMismatch,

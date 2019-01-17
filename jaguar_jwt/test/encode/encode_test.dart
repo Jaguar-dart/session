@@ -8,7 +8,6 @@ import 'package:jaguar_jwt/jaguar_jwt.dart';
 const String key = 'secret';
 
 void main() {
-
   group('Encoding', () {
     test('JWS example from RFC 7515', () {
       // Example token from Appendix A.1. of "JSON Web Signature (JWS)" RFC 7515
@@ -40,7 +39,7 @@ void main() {
       final claimSet = new JwtClaim(
           issuer: issuer,
           expiry: exp,
-          otherClaims: <String,dynamic>{'http://example.com/is_root': true},
+          otherClaims: <String, Object>{'http://example.com/is_root': true},
           defaultIatExp: false);
       final token = issueJwtHS256(claimSet, hmacKey);
 
@@ -67,7 +66,9 @@ void main() {
       // print('Header produced by "jaguar_jwt": $actualHeaderStr');
       // print('Header from example in RFC 7515: $expectedHeaderStr');
 
+      // ignore: omit_local_variable_types
       final dynamic expectedHeaderJson = json.decode(expectedHeaderStr);
+      // ignore: omit_local_variable_types
       final dynamic actualHeaderJson = json.decode(actualHeaderStr);
 
       expect(actualHeaderJson, equals(expectedHeaderJson));
@@ -79,7 +80,9 @@ void main() {
       // print('Payload produced by "jaguar_jwt": $actualPayloadStr');
       // print('Payload from example in RFC 7515: $expectedPayloadStr');
 
+      // ignore: omit_local_variable_types
       final dynamic expectedPayloadJson = json.decode(expectedPayloadStr);
+      // ignore: omit_local_variable_types
       final dynamic actualPayloadJson = json.decode(actualPayloadStr);
 
       expect(actualPayloadJson, equals(expectedPayloadJson));
@@ -178,7 +181,7 @@ void main() {
             audience: ['admin', 'students'],
             issuedAt: new DateTime.fromMillisecondsSinceEpoch(1481842800000,
                 isUtc: true),
-            payload: <String,dynamic>{'k': 'v'});
+            payload: <String, Object>{'k': 'v'});
         final token = issueJwtHS256(claimSet, key);
         expect(token, equals(expectedToken));
       });
@@ -193,7 +196,7 @@ void main() {
             audience: ['admin', 'students'],
             issuedAt: new DateTime.fromMillisecondsSinceEpoch(1481842800000,
                 isUtc: true),
-            otherClaims: <String,dynamic>{
+            otherClaims: <String, Object>{
               'pld': {'k': 'v'}
             });
         final token = issueJwtHS256(claimSet, key);
@@ -208,11 +211,11 @@ void main() {
                 audience: ['admin', 'students'],
                 issuedAt: new DateTime.fromMillisecondsSinceEpoch(1481842800000,
                     isUtc: true),
-                otherClaims: <String,dynamic>{
+                otherClaims: <String, Object>{
                   'pld': {'k': 'v'}
                 },
                 // ignore: all
-                payload: <String,dynamic>{'k': 'v'} // conflicts otherClaims
+                payload: <String, Object>{'k': 'v'} // conflicts otherClaims
                 ),
             throwsA(const TypeMatcher<ArgumentError>()));
       });
@@ -235,24 +238,26 @@ void main() {
           },
         };
 
-        final source = new JwtClaim(issuer: 'issuer.example.com', otherClaims: <String,dynamic>{
-          'nullValue': null,
-          'boolValue0': false,
-          'boolValue1': true,
-          'intValueZero': 0,
-          'intValuePositive': 42,
-          'intValueNegative': -1,
-          'doubleValueZero': 0.0,
-          'doubleValuePositive': 3.14,
-          'doubleValueNegative': -2.7182,
-          'stringValueEmpty': '',
-          'stringValueWithSpaces': strWithSpaces,
-          'stringValueWithUnicode': strWithUnicode,
-          'listValue': [0, 1, 2, 3],
-          'mapValueEmpty': <int,bool>{},
-          'mapValueMixed': {'foo': 1, 'bar': 'string'},
-          'mapValueNested': mapValueNested,
-        });
+        final source = new JwtClaim(
+            issuer: 'issuer.example.com',
+            otherClaims: <String, Object>{
+              'nullValue': null,
+              'boolValue0': false,
+              'boolValue1': true,
+              'intValueZero': 0,
+              'intValuePositive': 42,
+              'intValueNegative': -1,
+              'doubleValueZero': 0.0,
+              'doubleValuePositive': 3.14,
+              'doubleValueNegative': -2.7182,
+              'stringValueEmpty': '',
+              'stringValueWithSpaces': strWithSpaces,
+              'stringValueWithUnicode': strWithUnicode,
+              'listValue': [0, 1, 2, 3],
+              'mapValueEmpty': <int, bool>{},
+              'mapValueMixed': {'foo': 1, 'bar': 'string'},
+              'mapValueNested': mapValueNested,
+            });
 
         final claimSet =
             verifyJwtHS256Signature(issueJwtHS256(source, key), key);
@@ -272,7 +277,7 @@ void main() {
         expect(claimSet['stringValueWithSpaces'], equals(strWithSpaces));
         expect(claimSet['stringValueWithUnicode'], equals(strWithUnicode));
         expect(claimSet['listValue'], equals([0, 1, 2, 3]));
-        expect(claimSet['mapValueEmpty'], equals(<int,bool>{}));
+        expect(claimSet['mapValueEmpty'], equals(<int, bool>{}));
         expect(claimSet['mapValueMixed'], equals({'bar': 'string', 'foo': 1}));
         expect(claimSet['mapValueNested'], equals(mapValueNested));
 
@@ -301,6 +306,63 @@ void main() {
         expect(claimSet.audience, const TypeMatcher<List<String>>());
         expect(claimSet.audience, isEmpty);
         expect(claimSet['aud'], isNull);
+      });
+
+      test('Unsuitable Claim Values', () {
+        // Attempt to issue a JWT with bad Claim Values.
+        // Claim Values must be suitable for representation as JSON.
+        // This test ensures that non-string Map keys are detected (even if
+        // they are nested deep inside Lists or other Maps) as well as other
+        // reasons why the payload cannot be represented as JSON.
+
+        final badClaimValues = [
+          {42: 'non-string key in Map'},
+          [
+            123,
+            'abc',
+            {true: 'non-string key for Map inside a List'}
+          ],
+          {
+            'mapClaimValue': {
+              new DateTime(2019): 'non-string key for Map inside a Map'
+            }
+          },
+          [
+            [
+              [
+                [
+                  {42: 'deep nesting in Lists'}
+                ]
+              ]
+            ]
+          ],
+          {
+            'L1': {
+              'L2': {
+                'L3': {
+                  'L4': {42: 'deep nesting in Maps'}
+                }
+              }
+            }
+          },
+          new StringBuffer('an object with no toJson() method'),
+          [new StringBuffer('bad value in list')],
+          {'foo': new StringBuffer('bad value as value in key/value pair')},
+          {new StringBuffer('foo'): 'non-string key'}
+        ];
+
+        for (var bad in badClaimValues) {
+          final cs = new JwtClaim(otherClaims: <String, Object>{'pld': bad});
+          /*
+          try {
+            issueJwtHS256(cs, key);
+          } on JsonUnsupportedObjectError catch(e) {
+            print(e);
+          }
+          */
+          expect(() => issueJwtHS256(cs, key),
+              throwsA(const TypeMatcher<JsonUnsupportedObjectError>()));
+        }
       });
     });
   });

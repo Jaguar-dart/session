@@ -1,7 +1,6 @@
-# This file allows you to configure the Dart analyzer.
+# Dart analyzer configuration for jaguar_jwt.
 #
-# The commented part below is just for inspiration. Read the guide here:
-#   https://www.dartlang.org/guides/language/analysis-options
+# See guide here: https://www.dartlang.org/guides/language/analysis-options
 
 analyzer:
   strong-mode:
@@ -12,9 +11,16 @@ linter:
   rules:
     # see catalog here: http://dart-lang.github.io/linter/lints/
     - always_put_control_body_on_new_line
+    - avoid_annotating_with_dynamic
     - camel_case_types
-    # - omit_local_variable_types
+    - omit_local_variable_types
+    # - only_throw_errors
     - prefer_single_quotes
     - public_member_api_docs
     - sort_constructors_first
     - type_annotate_public_apis
+
+# Note: the code actually satisify all the linter rules (not just the ones above),
+# except for these two:
+# - always_specify_types # this is the opposite of 'omit_local_variable_types'
+# - only_throw_errors # JwtException needs to change to satisify this rule
