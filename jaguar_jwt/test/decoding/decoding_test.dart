@@ -212,6 +212,28 @@ void main() {
       expect(claimSet.notBefore, equals(notBefore));
       expect(claimSet.issuedAt, equals(issuedAt));
       expect(claimSet.jwtId, equals(jwtId));
+
+      expect(claimSet['sub'], equals(subject));
+      expect(claimSet['exp'], equals(expiry));
+      expect(claimSet['nbf'], equals(notBefore));
+      expect(claimSet['iat'], equals(issuedAt));
+      expect(claimSet['jti'], equals(jwtId));
+
+      expect(claimSet.containsKey('sub'), isTrue);
+      expect(claimSet.containsKey('exp'), isTrue);
+      expect(claimSet.containsKey('nbf'), isTrue);
+      expect(claimSet.containsKey('iat'), isTrue);
+      expect(claimSet.containsKey('jti'), isTrue);
+
+      expect(claimSet.containsKey('no-such-claim'), isFalse);
+      expect(claimSet.containsKey(''), isFalse);
+      expect(claimSet.containsKey(null), isFalse);
+
+      expect(claimSet['no-such-claim'], isNull);
+      expect(claimSet[''], isNull);
+      expect(claimSet[null], isNull);
+
+
     });
 
     //================================================================

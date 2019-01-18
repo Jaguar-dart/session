@@ -146,7 +146,7 @@ class JwtClaim {
       Map<String, Object> otherClaims,
       @deprecated Map<String, Object> payload,
       bool defaultIatExp = true,
-      Duration maxAge: _defaultMaxAge})
+      Duration maxAge})
       : audience = audience ?? [],
         issuedAt = issuedAt?.toUtc() ??
             ((defaultIatExp) ? new DateTime.now().toUtc() : null),
@@ -154,7 +154,7 @@ class JwtClaim {
         expiry = expiry?.toUtc() ??
             ((defaultIatExp)
                 ? ((issuedAt?.toUtc() ?? new DateTime.now().toUtc())
-                    .add(maxAge))
+                    .add(maxAge ?? _defaultMaxAge))
                 : null) {
     // Check and record any non-registered claims
 
@@ -191,7 +191,7 @@ class JwtClaim {
   /// Throws [JwtException.invalidToken] if the Map is not suitable.
 
   factory JwtClaim.fromMap(Map<Object, Object> data,
-      {bool defaultIatExp = true, Duration maxAge = _defaultMaxAge}) {
+      {bool defaultIatExp = true, Duration maxAge}) {
     // Note: the map comes from parsing the payload into JSON, so we can't
     // guarantee what the types of its keys and values are.
 
@@ -500,16 +500,16 @@ class JwtClaim {
   /// An [allowedClockSkew] can be provided to allow for differences between
   /// the clock of the system that created the token and the clock of the system
   /// doing the validation. By default, there is no allowance for clock skew
-  /// (i.e. a duration of zero).
+  /// (i.e. it defaults to a duration of zero).
 
   void validate(
       {String issuer,
       String audience,
-      Duration allowedClockSkew: const Duration(), // zero = allow no clock skew
+      Duration allowedClockSkew,
       DateTime currentTime}) {
-    // Ensure clock skew is never negative
+    // Ensure clock skew has a value and is never negative
 
-    final absClockSkew = allowedClockSkew.abs();
+    final absClockSkew = allowedClockSkew?.abs() ?? const Duration();
 
     // Check Issuer Claim
     if (issuer is String && this.issuer != issuer)
