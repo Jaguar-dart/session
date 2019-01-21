@@ -40,7 +40,8 @@ void main() {
 
       // Verify signature
 
-      final claimSet = verifyJwtHS256Signature(token, hmacKey, defaultIatExp: false);
+      final claimSet =
+          verifyJwtHS256Signature(token, hmacKey, defaultIatExp: false);
       expect(claimSet, isNotNull);
 
       // Validate the claim set
@@ -211,6 +212,28 @@ void main() {
       expect(claimSet.notBefore, equals(notBefore));
       expect(claimSet.issuedAt, equals(issuedAt));
       expect(claimSet.jwtId, equals(jwtId));
+
+      expect(claimSet['sub'], equals(subject));
+      expect(claimSet['exp'], equals(expiry));
+      expect(claimSet['nbf'], equals(notBefore));
+      expect(claimSet['iat'], equals(issuedAt));
+      expect(claimSet['jti'], equals(jwtId));
+
+      expect(claimSet.containsKey('sub'), isTrue);
+      expect(claimSet.containsKey('exp'), isTrue);
+      expect(claimSet.containsKey('nbf'), isTrue);
+      expect(claimSet.containsKey('iat'), isTrue);
+      expect(claimSet.containsKey('jti'), isTrue);
+
+      expect(claimSet.containsKey('no-such-claim'), isFalse);
+      expect(claimSet.containsKey(''), isFalse);
+      expect(claimSet.containsKey(null), isFalse);
+
+      expect(claimSet['no-such-claim'], isNull);
+      expect(claimSet[''], isNull);
+      expect(claimSet[null], isNull);
+
+
     });
 
     //================================================================
@@ -222,7 +245,7 @@ void main() {
           audience: <String>[
             'audience.example.com'
           ],
-          otherClaims: <String,dynamic>{
+          otherClaims: <String, Object>{
             'pld': {'foo': 'bar'}
           });
 
@@ -273,7 +296,7 @@ void main() {
           '{"alg":"HS256","typ":"jwt"}': JwtException.invalidToken, // case diff
           '{"alg":"HS256","typ":"Jwt"}': JwtException.invalidToken, // case diff
           '{"alg":"HS256","typ":"JWt"}': JwtException.invalidToken, // case diff
-          // TODO: In RFC 7519, "JWT" is only RECOMMENDED. Other values are OK.
+          // Note: In RFC 7519, "JWT" is only RECOMMENDED. Other values are OK.
 
           // Semantically same JSON, but the hash is different
           '{"typ":"JWT","alg":"HS256"}': JwtException.hashMismatch,

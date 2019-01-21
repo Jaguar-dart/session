@@ -10,7 +10,7 @@
 /// Currently, only the HMAC SHA-256 algorithm is supported to generate/process
 /// a JSON Web Signature (JWS).
 ///
-/// To generate a JWT, create a [JwtClaim] and use [issueJwtHS256]:
+/// To generate a JWT, create a `JwtClaim` and use [issueJwtHS256]:
 ///
 /// ```
 /// final claimSet = new JwtClaim(
@@ -18,7 +18,7 @@
 ///      subject: 'BD4A3FC4-9861-4171-8640-20C3004BD059',
 ///      audience: <String>['client1.example.com', 'client2.example.com'],
 ///      jwtId: _randomString(32),
-///      otherClaims: <String,dynamic>{
+///      otherClaims: <String, Object>{
 ///        'typ': 'authnresponse',
 ///        'pld': {'k': 'v'}
 ///      },
@@ -29,9 +29,9 @@
 /// final token = issueJwtHS256(claimSet, sharedSecret);
 /// ```
 ///
-/// To process a JWT, use [verifyJwtHS256Signature] to verify its signature
+/// To process a JWT, use `verifyJwtHS256Signature` to verify its signature
 /// and to extract a claim set from it, then verify the claim set using the
-/// [JwtClaim.validate] method before using the claims from it.
+/// `JwtClaim.validate` method before using the claims from it.
 ///
 /// ```
 /// const _expectedIssuer = 'issuer.example.com';

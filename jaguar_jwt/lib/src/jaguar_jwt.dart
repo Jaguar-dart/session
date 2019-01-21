@@ -88,7 +88,7 @@ class JwtException {
 ///       subject: 'kleak',
 ///       issuer: 'teja',
 ///       audience: <String>['example.com', 'client2.example.com'],
-///       otherClaims: <String,dynamic>{ 'pld': {'k': 'v'} });
+///       otherClaims: <String,Object>{ 'pld': {'k': 'v'} });
 ///
 ///     final token = issueJwtHS256(claimSet, key);
 ///     print(token);
@@ -120,7 +120,7 @@ class JwtClaim {
   /// It is a Map with the Claim Name as the key and the Claim Value as the
   /// value. The value must be something that can be converted into a JSON:
   /// either a scalar (i.e. null, bool, int, double or String), a List, or
-  /// Map<String,dynamic>. The otherClaims parameter cannot be used to set
+  /// Map<String,Object>. The otherClaims parameter cannot be used to set
   /// registered claims, only non-registered claims.
   ///
   /// The `payload` parameter is deprecated. To include a 'pld' claim,
@@ -143,10 +143,10 @@ class JwtClaim {
       DateTime notBefore,
       DateTime issuedAt,
       this.jwtId,
-      Map<String, dynamic> otherClaims,
-      @deprecated Map<String, dynamic> payload,
+      Map<String, Object> otherClaims,
+      @deprecated Map<String, Object> payload,
       bool defaultIatExp = true,
-      Duration maxAge: _defaultMaxAge})
+      Duration maxAge})
       : audience = audience ?? [],
         issuedAt = issuedAt?.toUtc() ??
             ((defaultIatExp) ? new DateTime.now().toUtc() : null),
@@ -154,7 +154,7 @@ class JwtClaim {
         expiry = expiry?.toUtc() ??
             ((defaultIatExp)
                 ? ((issuedAt?.toUtc() ?? new DateTime.now().toUtc())
-                    .add(maxAge))
+                    .add(maxAge ?? _defaultMaxAge))
                 : null) {
     // Check and record any non-registered claims
 
@@ -190,8 +190,8 @@ class JwtClaim {
   ///
   /// Throws [JwtException.invalidToken] if the Map is not suitable.
 
-  factory JwtClaim.fromMap(Map<dynamic, dynamic> data,
-      {bool defaultIatExp = true, Duration maxAge = _defaultMaxAge}) {
+  factory JwtClaim.fromMap(Map<Object, Object> data,
+      {bool defaultIatExp = true, Duration maxAge}) {
     // Note: the map comes from parsing the payload into JSON, so we can't
     // guarantee what the types of its keys and values are.
 
@@ -201,7 +201,7 @@ class JwtClaim {
         <String, String>{}; // for the three StringOrURI values
     for (var claimName in ['iss', 'sub', 'jti']) {
       if (data.containsKey(claimName)) {
-        final dynamic v = data[claimName];
+        final v = data[claimName];
         if (v is String) {
           singleStringValue[claimName] = v;
         } else {
@@ -213,7 +213,7 @@ class JwtClaim {
     final audienceList = <String>[];
     if (data.containsKey('aud')) {
       // The audience claim appears in the data
-      final dynamic aud = data['aud'];
+      final aud = data['aud'];
       if (aud is String) {
         // Special case when the JWT has one audience
         audienceList.add(aud);
@@ -228,7 +228,6 @@ class JwtClaim {
         }
       } else {
         throw JwtException.invalidToken; // unexpected type for audience
-
       }
     }
 
@@ -238,9 +237,9 @@ class JwtClaim {
 
     // Extract all non-registered claims (including 'pld' if it is in the data)
 
-    final others = <String, dynamic>{};
+    final others = <String, Object>{};
 
-    data.forEach((dynamic k, dynamic v) {
+    data.forEach((k, v) {
       if (k is String) {
         if (!registeredClaimNames.contains(k)) {
           others[k] = v;
@@ -273,7 +272,7 @@ class JwtClaim {
   /// For their defintion, see section 4.1 of
   /// [RFC 7519](https://tools.ietf.org/html/rfc7519#section-4.1).
 
-  static const List<String> registeredClaimNames = [
+  static const List<String> registeredClaimNames = const [
     'iss',
     'sub',
     'aud',
@@ -352,10 +351,10 @@ class JwtClaim {
   /// This is a Map where the key is the Claim Name and the value is the claim's
   /// value. The value can be anything that can be converted into JSON.
   /// For example, a scalar value (e.g. null, int or String), a List or Map.
-  final _otherClaims = <String, dynamic>{};
+  final _otherClaims = <String, Object>{};
 
   //================================================================
-  // Methods
+  // Access methods
 
   /// Indicates if a claim exists or not.
   ///
@@ -404,7 +403,7 @@ class JwtClaim {
   /// no Audience Claim (unlike the [audience] member variable, which will be an
   /// empty list).
 
-  dynamic operator [](String claimName) {
+  Object operator [](String claimName) {
     if (!registeredClaimNames.contains(claimName)) {
       // Non-registered claim
       return _otherClaims[claimName];
@@ -468,66 +467,21 @@ class JwtClaim {
   /// `claimSet.containsKey('pld')` to check if a payload exists or not.
 
   @deprecated
-  Map<String, dynamic> get payload {
-    final dynamic pld = _otherClaims[_legacyPayloadClaimName];
+  Map<String, Object> get payload {
+    final pld = _otherClaims[_legacyPayloadClaimName];
 
     if (pld == null) {
-      return <String, dynamic>{}; // No payload
-    } else if (pld is Map<String, dynamic>) {
+      return <String, Object>{}; // No payload
+    } else if (pld is Map<String, Object>) {
       return pld; // Has payload
     } else {
-      return <String, dynamic>{}; // No payload
+      return <String, Object>{}; // No payload
       // Note: legacy code only supports Map as a payload, even though new code
       // may set the 'pld' claim to other types of values.
     }
   }
 
-  /// Returns Dart built-in JSON representation of JWT claim set
-  Map toJson() {
-    final body = <String, dynamic>{};
-
-    // Include Registered Claim Names
-
-    if (issuer is String) {
-      body['iss'] = issuer;
-    }
-    if (subject is String) {
-      body['sub'] = subject;
-    }
-    if (audience.isNotEmpty) {
-      body['aud'] = audience;
-    }
-
-    if (expiry != null) {
-      body['exp'] = _numericDateEncode(expiry);
-    }
-    if (notBefore != null) {
-      body['nbf'] = _numericDateEncode(notBefore);
-    }
-    if (issuedAt != null) {
-      body['iat'] = _numericDateEncode(issuedAt);
-    }
-
-    if (jwtId is String) {
-      body['jti'] = jwtId;
-    }
-
-    // Include non-registered claims
-
-    _otherClaims.forEach((k, dynamic v) {
-      assert(!body.containsKey(k));
-      if (v is Map) {
-        body[k] = _splayify(v); // Map value
-      } else {
-        body[k] = v; // scalar value or List
-      }
-    });
-
-    // Return result
-
-    return _splayify(body);
-  }
-
+  //================================================================
   /// Validates the JWT claim set.
   ///
   /// Checks the for the [issuer] and [audience] and validates the Expiration
@@ -546,16 +500,16 @@ class JwtClaim {
   /// An [allowedClockSkew] can be provided to allow for differences between
   /// the clock of the system that created the token and the clock of the system
   /// doing the validation. By default, there is no allowance for clock skew
-  /// (i.e. a duration of zero).
+  /// (i.e. it defaults to a duration of zero).
 
   void validate(
       {String issuer,
       String audience,
-      Duration allowedClockSkew: const Duration(), // zero = allow no clock skew
+      Duration allowedClockSkew,
       DateTime currentTime}) {
-    // Ensure clock skew is never negative
+    // Ensure clock skew has a value and is never negative
 
-    final absClockSkew = allowedClockSkew.abs();
+    final absClockSkew = allowedClockSkew?.abs() ?? const Duration();
 
     // Check Issuer Claim
     if (issuer is String && this.issuer != issuer)
@@ -609,6 +563,67 @@ class JwtClaim {
     // No checks for JWT ID Claim: the application is supposed to do that
   }
 
+  //================================================================
+  // Conversion methods
+
+  /// Converts the claim set into a Map suitable for encoding as JSON.
+
+  Map toJson() {
+    final body = new SplayTreeMap<String, Object>();
+
+    // Include any registered claims
+
+    if (issuer is String) {
+      body['iss'] = issuer;
+    }
+    if (subject is String) {
+      body['sub'] = subject;
+    }
+
+    // Support for the special case would be nice, but it will change the
+    // behaviour from what jaguar_jwt v2.1.5 did.
+    // <https://tools.ietf.org/html/rfc7519#section-4.1.3>
+    //
+    /* Uncomment to support 'aud' special case
+    if (audience.length == 1) {
+      body['aud'] = audience.first; // special case: single string value
+    } else
+    */
+
+    if (audience.isNotEmpty) {
+      body['aud'] = audience; // general case: array of strings
+    }
+
+    if (expiry != null) {
+      body['exp'] = _numericDateEncode(expiry);
+    }
+    if (notBefore != null) {
+      body['nbf'] = _numericDateEncode(notBefore);
+    }
+    if (issuedAt != null) {
+      body['iat'] = _numericDateEncode(issuedAt);
+    }
+
+    if (jwtId is String) {
+      body['jti'] = jwtId;
+    }
+
+    // Include any non-registered claims
+
+    _otherClaims.forEach((k, v) {
+      assert(!body.containsKey(k));
+      try {
+        body[k] = _splay(v);
+      } on FormatException catch (e) {
+        throw new JsonUnsupportedObjectError('JWT claim: $k (${e.message})');
+      }
+    });
+
+    // Return result (SplayTreeMap means JSON has the keys in sorted order)
+
+    return body;
+  }
+
   //----------------------------------------------------------------
   /// Converts a JwtClaim into a multi-line String for display.
 
@@ -616,12 +631,74 @@ class JwtClaim {
   String toString() {
     final buf = StringBuffer('{\n');
 
+    var hadPrev = false;
     for (var claimName in claimNames(includeRegisteredClaims: true)) {
-      buf..write('  $claimName: ')..write(this[claimName])..write('\n');
+      if (hadPrev) {
+        buf.write(',\n');
+      }
+      buf.write(_toStringIndent);
+      _toStringDump(claimName, buf);
+      buf.write(': ');
+      _toStringDump(this[claimName], buf, 1);
+      hadPrev = true;
+    }
+    if (hadPrev) {
+      buf.write('\n');
     }
     buf.write('}');
 
     return buf.toString();
+  }
+
+  static const String _toStringIndent = '  ';
+
+  static void _toStringDump(Object value, StringBuffer buf, [int indent = 0]) {
+    if (value is Iterable<Object>) {
+      // Dump an Iterable
+      buf.write('[\n');
+      var hadPrev = false;
+      for (var v in value) {
+        if (hadPrev) {
+          buf.write(',\n');
+        }
+        buf.write(_toStringIndent * (indent + 1));
+        _toStringDump(v, buf, indent + 1);
+        hadPrev = true;
+      }
+      if (hadPrev) {
+        buf.write('\n');
+      }
+      buf..write(_toStringIndent * (indent))..write(']');
+    } else if (value is Map) {
+      // Dump a Map
+      buf.write('{\n');
+      var hadPrev = false;
+      for (var k in value.keys) {
+        if (hadPrev) {
+          buf.write(',\n');
+        }
+        buf.write(_toStringIndent * (indent + 1));
+        _toStringDump(k, buf, 0);
+        buf.write(': ');
+        _toStringDump(value[k], buf, indent + 1);
+        hadPrev = true;
+      }
+      if (hadPrev) {
+        buf.write('\n');
+      }
+      buf..write(_toStringIndent * (indent))..write('}');
+    } else if (value is String) {
+      // Dump a String value
+      final escValue = value..replaceAll('\\', '\\\\')..replaceAll('"', '\\"');
+      buf.write('"$escValue"');
+    } else if (value is DateTime) {
+      // Dump a DateTime value
+      buf.write('<$value>');
+      // buf.write('DateTime.parse("$value")');
+    } else {
+      // Dump some other
+      buf.write(value);
+    }
   }
 
   //================================================================
@@ -660,7 +737,7 @@ class JwtClaim {
   /// Throws [JwtException.invalidToken] if the value is not the correct type
   /// or is out of range.
 
-  static DateTime _numericDateDecode(dynamic value) {
+  static DateTime _numericDateDecode(Object value) {
     if (value == null) {
       // Absent
       return null;
@@ -700,10 +777,16 @@ class JwtClaim {
   }
 }
 
+//================================================================
+// Issuing JWT
+
 /// Issues a HMAC SHA-256 signed JWT.
 ///
 /// Creates a JWT using the [claimSet] for the payload and signing it using
 /// the [hmacKey] with the HMAC SHA-256 algorithm.
+///
+/// Throws a [JsonUnsupportedObjectError] if any of the Claim Values are not
+/// suitable for a JWT.
 ///
 ///     final claimSet = new JwtClaim(
 ///       subject: 'kleak',
@@ -715,8 +798,11 @@ class JwtClaim {
 
 String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
   final hmac = new Hmac(sha256, hmacKey.codeUnits);
+
+  // Use SplayTreeMap to ensure ordering in JSON: i.e. alg before typ.
+  // Ordering is not required for JWT: it is deterministic and neater.
   final header = new SplayTreeMap<String, String>.from(
-      <String, String>{'alg': 'HS256', 'typ': 'JWT'}); // TODO: why a SplayTree?
+      <String, String>{'alg': 'HS256', 'typ': 'JWT'});
 
   final encHdr = B64urlEncRfc7515.encodeUtf8(json.encode(header));
   final encPld = B64urlEncRfc7515.encodeUtf8(json.encode(claimSet.toJson()));
@@ -730,10 +816,50 @@ String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
   return data + '.' + encSig;
 }
 
+//================================================================
+// Processing JWT
+
+/// Header checking function type used by [verifyJwtHS256Signature].
+
+typedef bool JOSEHeaderCheck(Map<Object, Object> joseHeader);
+
+//----------------------------------------------------------------
+/// Default JOSE Header checker.
+///
+/// Returns true (header is ok) if the 'typ' Header Parameter is absent, or it
+/// is present with the exact value of 'JWT'. Otherwise, false (header is
+/// rejected).
+///
+/// This implementation allows [verifyJwtHS256Signature] to exactly replicate
+/// its previous behaviour.
+///
+/// Note: this check is more restrictive than what RFC 7519 requires, since the
+/// value of 'JWT' is only a recommendation and it is supposed to be case
+/// insensitive. See <https://tools.ietf.org/html/rfc7519#section-5.1>
+
+bool defaultJWTHeaderCheck(Map<Object, Object> h) {
+  if (h.containsKey('typ')) {
+    final typ = h['typ'];
+    if (typ is String) {
+      // if (typ.toUpperCase() != 'JWT') { // better
+      if (typ != 'JWT') {
+        return false; // reject: wrong value
+      }
+    } else {
+      return false; // reject: unexpected value type for 'typ'
+    }
+  }
+  return true; // header is ok
+}
+
+//----------------------------------------------------------------
 /// Verifies the signature and extracts the claim set from a JWT.
 ///
 /// The signature is verified using the [hmacKey] with the HMAC SHA-256
 /// algorithm.
+///
+/// The [headerCheck] is an optional function to check the header.
+/// It defaults to [defaultJWTHeaderCheck].
 ///
 /// Normally, if either the _Issued At Claim_ and/or _Expiration Time Claim_
 /// are not present, default values are assigned to them.
@@ -745,10 +871,12 @@ String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
 /// JWT is invalid.
 ///
 ///     final decClaimSet = verifyJwtHS256Signature(token, key);
-///     print(decClaimSet.toJson());
+///     print(decClaimSet);
 
 JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
-    {bool defaultIatExp = true, Duration maxAge = JwtClaim._defaultMaxAge}) {
+    {JOSEHeaderCheck headerCheck = defaultJWTHeaderCheck,
+    bool defaultIatExp = true,
+    Duration maxAge = JwtClaim._defaultMaxAge}) {
   try {
     final hmac = new Hmac(sha256, hmacKey.codeUnits);
     final parts = token.split('.');
@@ -762,19 +890,25 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
     final headerString = B64urlEncRfc7515.decodeUtf8(parts[0]);
     final payloadString = B64urlEncRfc7515.decodeUtf8(parts[1]);
 
-    // Verify header
+    // Check header
 
+    // ignore: omit_local_variable_types
     final dynamic header = json.decode(headerString);
-    if (header is! Map)
-      throw JwtException.invalidToken; // is JSON, but not a JSON object
+    if (header is Map<Object, Object>) {
+      // Perform any custom checks on the header
 
-    // TODO: don't check the value, since "JWT" is recommended but not mandatory
-    // <https://tools.ietf.org/html/rfc7519#section-5.1>
-    if (header['typ'] != null && header['typ'] != 'JWT')
-      throw JwtException.invalidToken;
+      if (headerCheck != null && !headerCheck(header)) {
+        throw JwtException.invalidToken;
+      }
 
-    if (header['alg'] != 'HS256')
-      throw JwtException.hashMismatch; // wrong algorithm or missing
+      // Perform mandatory check on the header.
+
+      if (header['alg'] != 'HS256') {
+        throw JwtException.hashMismatch; // missing 'alg' or wrong algorithm
+      }
+    } else {
+      throw JwtException.invalidToken; // header is JSON, but not a JSON object
+    }
 
     // Verify signature: calculate signature and compare to token's signature
 
@@ -789,6 +923,7 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
 
     // Convert payload into a claim set
 
+    // ignore: omit_local_variable_types
     final dynamic payload = json.decode(payloadString);
     if (payload is Map) {
       return new JwtClaim.fromMap(payload,
@@ -805,21 +940,38 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
   }
 }
 
-SplayTreeMap _splayify(Map map) {
-  final data = <dynamic, dynamic>{};
-  map.forEach((dynamic k, dynamic v) {
-    data[k] = _splay(v);
+//================================================================
+// Utility functions to recursively create a SplayTreeMap from a Map.
+//
+// This is used by the JWT issuing function to convert Claim Values that are
+// Maps (and Maps nested inside Claim Values) into a SplayTreeMap, so that the
+// JSON that is produced has the member names in alphabetical order.
+//
+// Ordering is not a requirement for JWT, but it makes the token deterministic
+// which is nicer.
+
+SplayTreeMap<String, Object> _splayify(Map<Object, Object> map) {
+  final data = new SplayTreeMap<String, Object>();
+
+  map.forEach((k, v) {
+    if (k is String) {
+      data[k] = _splay(v);
+    } else {
+      throw const FormatException('Map with non-String key');
+    }
   });
-  return new SplayTreeMap<dynamic, dynamic>.from(data);
+
+  return data;
 }
 
-dynamic _splay(dynamic value) {
+Object _splay(Object value) {
   if (value is Iterable) {
-    return value.map<dynamic>(_splay).toList();
-  } else if (value is Map)
+    return value.map<Object>(_splay).toList();
+  } else if (value is Map) {
     return _splayify(value);
-  else
+  } else {
     return value;
+  }
 }
 
 //================================================================
