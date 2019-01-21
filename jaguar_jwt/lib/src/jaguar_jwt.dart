@@ -37,11 +37,12 @@ String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
   final header = SplayTreeMap<String, String>.from(
       <String, String>{'alg': 'HS256', 'typ': 'JWT'});
 
-  final encHdr = B64urlEncRfc7515.encodeUtf8(json.encode(header));
-  final encPld = B64urlEncRfc7515.encodeUtf8(json.encode(claimSet.toJson()));
-
-  final data = '${encHdr}.${encPld}';
-  final encSig = B64urlEncRfc7515.encode(hmac.convert(data.codeUnits).bytes);
+  final String encHdr = B64urlEncRfc7515.encodeUtf8(json.encode(header));
+  final String encPld =
+      B64urlEncRfc7515.encodeUtf8(json.encode(claimSet.toJson()));
+  final String data = '${encHdr}.${encPld}';
+  final String encSig =
+      B64urlEncRfc7515.encode(hmac.convert(data.codeUnits).bytes);
   return data + '.' + encSig;
 }
 
@@ -97,13 +98,12 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
     Duration maxAge = JwtClaim.defaultMaxAge}) {
   try {
     final hmac = Hmac(sha256, hmacKey.codeUnits);
-    final parts = token.split('.');
 
+    final parts = token.split('.');
     if (parts.length != 3) throw JwtException.invalidToken;
 
     // Decode header and payload
     final headerString = B64urlEncRfc7515.decodeUtf8(parts[0]);
-
     // Check header
     final Object header = json.decode(headerString);
     if (header is Map<Object, Object>) {
@@ -112,7 +112,6 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
         throw JwtException.invalidToken;
       }
 
-      // Perform mandatory check on the header.
       if (header['alg'] != 'HS256') throw JwtException.hashMismatch;
     } else {
       throw JwtException.headerNotJson;

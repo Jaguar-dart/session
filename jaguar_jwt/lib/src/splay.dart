@@ -22,6 +22,7 @@ SplayTreeMap<String, Object> _splayify(Map<Object, Object> map) {
   return data;
 }
 
+/// Splays
 Object splay(Object value) {
   if (value is Iterable) {
     return value.map<Object>(splay).toList();

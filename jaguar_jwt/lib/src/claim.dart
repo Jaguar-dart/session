@@ -1,6 +1,5 @@
 import 'dart:collection';
 import 'dart:convert';
-
 import 'date.dart';
 import 'exception.dart';
 import 'prettify.dart';
@@ -472,7 +471,7 @@ class JwtClaim {
   /// Used to generate a value for Expiry when creating a claim set and no
   /// explicit value for Expiry is provided (and the generation of a default
   /// value has not been disabled).
-  static const defaultMaxAge = const Duration(days: 1);
+  static const Duration defaultMaxAge = const Duration(days: 1);
 
   /// Claim Name for the legacy payload claim.
   static const String _payloadClaimName = 'pld';

@@ -232,8 +232,6 @@ void main() {
       expect(claimSet['no-such-claim'], isNull);
       expect(claimSet[''], isNull);
       expect(claimSet[null], isNull);
-
-
     });
 
     //================================================================
