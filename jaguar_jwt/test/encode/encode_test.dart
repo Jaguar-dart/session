@@ -203,23 +203,6 @@ void main() {
         expect(token, equals(expectedToken));
       });
 
-      test('Using both payload and otherClaims is not allowed', () {
-        expect(
-            () => new JwtClaim(
-                issuer: 'teja',
-                subject: '1234567890',
-                audience: ['admin', 'students'],
-                issuedAt: new DateTime.fromMillisecondsSinceEpoch(1481842800000,
-                    isUtc: true),
-                otherClaims: <String, Object>{
-                  'pld': {'k': 'v'}
-                },
-                // ignore: all
-                payload: <String, Object>{'k': 'v'} // conflicts otherClaims
-                ),
-            throwsA(const TypeMatcher<ArgumentError>()));
-      });
-
       test('Different value types', () {
         const strWithSpaces = '  foo bar  BAZ  '; // multiple leading+trailing
         const strWithUnicode = '美洲虎';

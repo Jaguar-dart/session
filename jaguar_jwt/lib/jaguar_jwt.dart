@@ -56,3 +56,7 @@
 library jaguar_jwt;
 
 export 'src/jaguar_jwt.dart';
+
+export 'src/b64url_rfc7515.dart';
+export 'src/claim.dart';
+export 'src/exception.dart';

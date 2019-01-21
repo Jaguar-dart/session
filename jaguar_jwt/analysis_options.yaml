@@ -10,10 +10,8 @@ analyzer:
 linter:
   rules:
     # see catalog here: http://dart-lang.github.io/linter/lints/
-    - always_put_control_body_on_new_line
     - avoid_annotating_with_dynamic
     - camel_case_types
-    - omit_local_variable_types
     # - only_throw_errors
     - prefer_single_quotes
     - public_member_api_docs
