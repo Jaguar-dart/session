@@ -53,13 +53,13 @@ class JwtMapCoder implements MapCoder {
         issuer: validationConfig.issuer,
         audience: validationConfig.audience,
       );
-    } on JwtException catch (_) {
+    } catch (_) {
       throw Response(null, statusCode: HttpStatus.unauthorized);
     }
   }
 
   String encode(Map<String, String> values) {
-    final claimSet = new JwtClaim(
+    final claimSet = JwtClaim(
         issuer: config.issuer,
         subject: values[subjectKey],
         audience: config.audience,

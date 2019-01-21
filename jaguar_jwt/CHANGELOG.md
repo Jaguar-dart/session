@@ -1,6 +1,6 @@
 # Changelog
 
-## TBD
+## 2.1.6
 
 + Added support for optional Not Before (`nbf`) time claims.
 + Fixed validation to reject token when current time equals the Expiry time.
