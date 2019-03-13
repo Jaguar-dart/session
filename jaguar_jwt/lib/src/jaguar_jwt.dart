@@ -9,6 +9,7 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:jaguar_jwt/src/secure_compare.dart';
 
 import 'b64url_rfc7515.dart';
 import 'claim.dart';
@@ -119,9 +120,11 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
 
     // Verify signature: calculate signature and compare to token's signature
     final data = '${parts[0]}.${parts[1]}';
-    final calcSig = B64urlEncRfc7515.encode(hmac.convert(data.codeUnits).bytes);
+    final calcSig = hmac.convert(data.codeUnits).bytes;
+    final tokenSig = B64urlEncRfc7515.decode(parts[2]);
     // Signature does not match calculated
-    if (calcSig != parts[2]) throw JwtException.hashMismatch;
+    if (!secureCompareIntList(calcSig, tokenSig))
+      throw JwtException.hashMismatch;
 
     // Convert payload into a claim set
     final payloadString = B64urlEncRfc7515.decodeUtf8(parts[1]);
