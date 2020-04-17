@@ -15,6 +15,8 @@ import 'b64url_rfc7515.dart';
 import 'claim.dart';
 import 'exception.dart';
 
+
+
 /// Issues a HMAC SHA-256 signed JWT.
 ///
 /// Creates a JWT using the [claimSet] for the payload and signing it using
@@ -58,7 +60,7 @@ typedef bool JOSEHeaderCheck(Map<Object, Object> joseHeader);
 ///
 /// This implementation allows [verifyJwtHS256Signature] to exactly replicate
 /// its previous behaviour.
-///
+///.
 /// Note: this check is more restrictive than what RFC 7519 requires, since the
 /// value of 'JWT' is only a recommendation and it is supposed to be case
 /// insensitive. See <https://tools.ietf.org/html/rfc7519#section-5.1>
