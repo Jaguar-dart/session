@@ -6,7 +6,6 @@ authors:
 - Kevin Segaud <segaud.kevin@gmail.com>
 homepage: https://github.com/Jaguar-dart/session
 
-documentation:
 
 environment:
   sdk: ">=2.0.0-dev.65 <3.0.0"
@@ -14,7 +13,7 @@ environment:
 dependencies:
   auth_header: ^2.1.1
   crypto: ^2.0.5
-  rsa_pkcs:
+  rsa_pkcs: ^1.1.4
 
 dev_dependencies:
   test: ^1.3.0

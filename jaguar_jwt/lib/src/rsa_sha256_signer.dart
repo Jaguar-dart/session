@@ -1,27 +1,19 @@
 import 'dart:collection';
 import 'dart:convert';
 
-import 'package:crypto/crypto.dart';
-import 'package:jaguar_jwt/src/secure_compare.dart';
+import 'package:rsa_pkcs/rsa_pkcs.dart' as rsa;
 
 import 'b64url_rfc7515.dart';
 import 'claim.dart';
-import 'exception.dart';
-
-import 'package:rsa_pkcs/rsa_pkcs.dart' as rsa;
 
 String issueJwtRsaSha256(JwtClaim claimSet, {String privateKey, String publicKey, String password}) {
   // Use SplayTreeMap to ensure ordering in JSON: i.e. alg before typ.
   // Ordering is not required for JWT: it is deterministic and neater.
-  final header = SplayTreeMap<String, String>.from(
-      <String, String>{'alg': 'HS256', 'typ': 'JWT'});
+  final header = SplayTreeMap<String, String>.from(<String, String>{'alg': 'HS256', 'typ': 'JWT'});
 
   final String encHdr = B64urlEncRfc7515.encodeUtf8(json.encode(header));
-  final String encPld =
-  B64urlEncRfc7515.encodeUtf8(json.encode(claimSet.toJson()));
+  final String encPld = B64urlEncRfc7515.encodeUtf8(json.encode(claimSet.toJson()));
   final String data = '${encHdr}.${encPld}';
-
-
 }
 
 class RsaSha256Signer {
