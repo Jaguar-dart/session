@@ -74,14 +74,14 @@ class JwtClaim {
       {this.issuer,
       this.subject,
       this.audience: const [],
-      DateTime expiry,
-      DateTime notBefore,
-      DateTime issuedAt,
+      DateTime? expiry,
+      DateTime? notBefore,
+      DateTime? issuedAt,
       this.jwtId,
-      Map<String, Object> otherClaims,
-      Map<String, Object> payload,
+      Map<String, Object?>? otherClaims,
+      Map<String, Object>? payload,
       bool defaultIatExp = true,
-      Duration maxAge})
+      Duration? maxAge})
       : issuedAt = issuedAt?.toUtc() ??
             ((defaultIatExp) ? DateTime.now().toUtc() : null),
         notBefore = notBefore?.toUtc(),
@@ -117,7 +117,7 @@ class JwtClaim {
   ///
   /// Throws [JwtException.invalidToken] if the Map is not suitable.
   factory JwtClaim.fromMap(Map<Object, Object> data,
-      {bool defaultIatExp = true, Duration maxAge}) {
+      {bool defaultIatExp = true, Duration? maxAge}) {
     final singleStringValue = <String, String>{};
     for (var claimName in ['iss', 'sub', 'jti']) {
       if (data.containsKey(claimName)) {
@@ -186,14 +186,14 @@ class JwtClaim {
   /// If this claim does not exist, the value is null.
   ///
   /// The claim name for this claim is 'iss'.
-  final String issuer;
+  final String? issuer;
 
   /// Subject Claim
   ///
   /// If this claim does not exist, the value is null.
   ///
   /// The claim name for this claim is 'sub'.
-  final String subject;
+  final String? subject;
 
   /// Audience Claim
   ///
@@ -207,41 +207,41 @@ class JwtClaim {
   /// If this claim does not exist, the value is null.
   ///
   /// The claim name for this claim is 'exp'.
-  final DateTime expiry;
+  final DateTime? expiry;
 
   /// Not Before Claim
   ///
   /// If this claim does not exist, the value is null.
   ///
   /// The claim name for this claim is 'nbf'.
-  final DateTime notBefore;
+  final DateTime? notBefore;
 
   /// Issued At Claim
   ///
   /// If this claim does not exist, the value is null.
   ///
   /// The claim name for this claim is 'iat'.
-  final DateTime issuedAt;
+  final DateTime? issuedAt;
 
   /// JWT ID Claim
   ///
   /// If this claim does not exist, the value is null.
   ///
   /// The claim name for this claim is 'jti'.
-  final String jwtId;
+  final String? jwtId;
 
   /// All non-registered claims.
   ///
   /// This is a Map where the key is the Claim Name and the value is the claim's
   /// value. The value can be anything that can be converted into JSON.
   /// For example, a scalar value (e.g. null, int or String), a List or Map.
-  final _otherClaims = <String, Object>{};
+  final _otherClaims = <String, Object?>{};
 
   /// Indicates if a claim exists or not.
   ///
   /// The [claimName] can be the Claim Name of a registered claim or a
   /// non-registered claim.
-  bool containsKey(String claimName) {
+  bool containsKey(String? claimName) {
     if (!registeredClaimNames.contains(claimName)) {
       // Non-registered claim
       return _otherClaims.containsKey(claimName);
@@ -282,10 +282,10 @@ class JwtClaim {
   /// Note: when the claim name is 'aud', this method returns null when there is
   /// no Audience Claim (unlike the [audience] member variable, which will be an
   /// empty list).
-  Object operator [](String claimName) {
+  Object? operator [](String? claimName) {
     if (!registeredClaimNames.contains(claimName)) {
       // Non-registered claim
-      return _otherClaims[claimName];
+      return _otherClaims[claimName!];
     } else {
       // Registered claim
       switch (claimName) {
@@ -335,11 +335,11 @@ class JwtClaim {
   }
 
   /// The payload (pld) claim.
-  Map<String, Object> get payload {
+  Map<String, Object>? get payload {
     final pld = _otherClaims[_payloadClaimName];
 
     if (pld is Map<String, Object> || pld == null)
-      return pld as Map<String, Object>;
+      return pld as Map<String, Object>?;
 
     throw Exception('Invalid payload type found in the JWT token!');
   }
@@ -364,10 +364,10 @@ class JwtClaim {
   /// doing the validation. By default, there is no allowance for clock skew
   /// (i.e. it defaults to a duration of zero).
   void validate(
-      {String issuer,
-      String audience,
-      Duration allowedClockSkew,
-      DateTime currentTime}) {
+      {String? issuer,
+      String? audience,
+      Duration? allowedClockSkew,
+      DateTime? currentTime}) {
     // Ensure clock skew has a value and is never negative
     final absClockSkew = allowedClockSkew?.abs() ?? const Duration();
 
@@ -383,9 +383,9 @@ class JwtClaim {
 
     // Validate time claims (if present) are consistent
     // i.e. Expiry is not Before NotBefore, and expiry is not before IssuedAt
-    if (expiry != null && notBefore != null && !expiry.isAfter(notBefore))
+    if (expiry != null && notBefore != null && !expiry!.isAfter(notBefore!))
       throw JwtException.invalidToken;
-    if (expiry != null && issuedAt != null && !expiry.isAfter(issuedAt))
+    if (expiry != null && issuedAt != null && !expiry!.isAfter(issuedAt!))
       throw JwtException.invalidToken;
 
     // Validate time claims against the current time
@@ -400,13 +400,13 @@ class JwtClaim {
     // Check Expiration Time Claim
     // Reject the token if the current time is at or after the Expiry time.
     // (At exactly Expiry is also rejected.)
-    if (expiry != null && !cTime.isBefore(expiry.add(absClockSkew)))
+    if (expiry != null && !cTime.isBefore(expiry!.add(absClockSkew)))
       throw JwtException.tokenExpired;
 
     // Check Not Before Claim
     // Reject token if the current time is before the Not Before time.
     // (At exactly Not Before is ok.)
-    if (notBefore != null && notBefore.subtract(absClockSkew).isAfter(cTime))
+    if (notBefore != null && notBefore!.subtract(absClockSkew).isAfter(cTime))
       throw JwtException.tokenNotYetAccepted;
 
     // No checks for Issued At Claim
@@ -422,15 +422,15 @@ class JwtClaim {
 
   /// Converts the claim set into a Map suitable for encoding as JSON.
   Map toJson() {
-    final body = SplayTreeMap<String, Object>();
+    final body = SplayTreeMap<String, Object?>();
 
     // Registered claims
     if (issuer is String) body['iss'] = issuer;
     if (subject is String) body['sub'] = subject;
     if (audience.isNotEmpty) body['aud'] = audience;
-    if (expiry != null) body['exp'] = JwtDate.encode(expiry);
-    if (notBefore != null) body['nbf'] = JwtDate.encode(notBefore);
-    if (issuedAt != null) body['iat'] = JwtDate.encode(issuedAt);
+    if (expiry != null) body['exp'] = JwtDate.encode(expiry!);
+    if (notBefore != null) body['nbf'] = JwtDate.encode(notBefore!);
+    if (issuedAt != null) body['iat'] = JwtDate.encode(issuedAt!);
     if (jwtId is String) body['jti'] = jwtId;
 
     // Non-registered claims

@@ -23,7 +23,7 @@ String prettify(JwtClaim claim) {
 
 const String _toStringIndent = '  ';
 
-void _toStringDump(Object value, StringBuffer buf, [int indent = 0]) {
+void _toStringDump(Object? value, StringBuffer buf, [int indent = 0]) {
   if (value is Iterable<Object>) {
     // Dump an Iterable
     buf.write('[\n');

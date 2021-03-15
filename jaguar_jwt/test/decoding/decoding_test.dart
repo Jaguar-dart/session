@@ -283,7 +283,7 @@ void main() {
         // other exceptions before the signature verification fails
         // (i.e. can have other exceptions besides [JwtException.hashMismatch]).
 
-        <String, JwtException>{
+        <String, JwtException?>{
           // Different alg
           '{"typ":"JWT"}': JwtException.hashMismatch, // algorithm missing
           '{"alg":"none","typ":"JWT"}': JwtException.hashMismatch, // not HS256

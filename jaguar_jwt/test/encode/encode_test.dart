@@ -133,11 +133,11 @@ void main() {
         expect(csWithDefaults.expiry, const TypeMatcher<DateTime>());
         expect(csNoDefaults.notBefore, isNull); // nbf is never defaulted
 
-        expect(csWithDefaults.issuedAt.isBefore(beforeCreation), isFalse);
-        expect(csWithDefaults.issuedAt.isAfter(afterCreation), isFalse);
+        expect(csWithDefaults.issuedAt!.isBefore(beforeCreation), isFalse);
+        expect(csWithDefaults.issuedAt!.isAfter(afterCreation), isFalse);
 
         final defaultMaxAlive =
-            csWithDefaults.expiry.difference(csWithDefaults.issuedAt);
+            csWithDefaults.expiry!.difference(csWithDefaults.issuedAt!);
 
         expect(const Duration(minutes: 1) < defaultMaxAlive, isTrue,
             reason: 'default maxAlive is too short: $defaultMaxAlive');
@@ -153,8 +153,8 @@ void main() {
         final cs = new JwtClaim(issuedAt: currentTime, maxAge: lifespan);
 
         // Note: issuedAt is in UTC, but currentTime is in localtime
-        expect(cs.issuedAt.isAtSameMomentAs(currentTime), isTrue);
-        expect(cs.expiry.isAtSameMomentAs(currentTime.add(lifespan)), isTrue);
+        expect(cs.issuedAt!.isAtSameMomentAs(currentTime), isTrue);
+        expect(cs.expiry!.isAtSameMomentAs(currentTime.add(lifespan)), isTrue);
       });
     });
 
@@ -223,7 +223,7 @@ void main() {
 
         final source = new JwtClaim(
             issuer: 'issuer.example.com',
-            otherClaims: <String, Object>{
+            otherClaims: <String, Object?>{
               'nullValue': null,
               'boolValue0': false,
               'boolValue1': true,

@@ -6,7 +6,7 @@ import 'package:rsa_pkcs/rsa_pkcs.dart' as rsa;
 import 'b64url_rfc7515.dart';
 import 'claim.dart';
 
-String issueJwtRsaSha256(JwtClaim claimSet, {String privateKey, String publicKey, String password}) {
+void issueJwtRsaSha256(JwtClaim claimSet, {String? privateKey, String? publicKey, String? password}) {
   // Use SplayTreeMap to ensure ordering in JSON: i.e. alg before typ.
   // Ordering is not required for JWT: it is deterministic and neater.
   final header = SplayTreeMap<String, String>.from(<String, String>{'alg': 'HS256', 'typ': 'JWT'});
@@ -17,26 +17,26 @@ String issueJwtRsaSha256(JwtClaim claimSet, {String privateKey, String publicKey
 }
 
 class RsaSha256Signer {
-  final rsa.RSAPrivateKey privateKey;
-  final rsa.RSAPublicKey publicKey;
+  final rsa.RSAPrivateKey? privateKey;
+  final rsa.RSAPublicKey? publicKey;
 
   RsaSha256Signer(this.publicKey, this.privateKey);
 
-  factory RsaSha256Signer.make({String privateKey, String publicKey, String password}) {
+  factory RsaSha256Signer.make({String? privateKey, String? publicKey, String? password}) {
     final parser = rsa.RSAPKCSParser();
 
-    rsa.RSAPrivateKey priv;
+    rsa.RSAPrivateKey? priv;
     if (privateKey != null) {
-      final pair = parser.parsePEM(privateKey, password: password);
+      final pair = parser.parsePEM(privateKey, password: password!);
       if (pair.private == null) {
         throw ArgumentError('Invalid private key provided');
       }
       priv = pair.private;
     }
 
-    rsa.RSAPublicKey pub;
+    rsa.RSAPublicKey? pub;
     if (publicKey != null) {
-      final pair = parser.parsePEM(publicKey, password: password);
+      final pair = parser.parsePEM(publicKey, password: password!);
       if (pair.public == null) {
         throw ArgumentError('Invalid public key provided');
       }
