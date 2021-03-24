@@ -278,7 +278,7 @@ void main() {
           expect(claimSet.notBefore, isNull);
           expect(claimSet.expiry, isNotNull); // default used
 
-          expect(claimSet.issuedAt.difference(whenConstructorWasInvoked),
+          expect(claimSet.issuedAt!.difference(whenConstructorWasInvoked),
               lessThan(const Duration(seconds: 1)));
         });
       });

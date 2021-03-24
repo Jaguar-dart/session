@@ -227,11 +227,9 @@ void main() {
 
       expect(claimSet.containsKey('no-such-claim'), isFalse);
       expect(claimSet.containsKey(''), isFalse);
-      expect(claimSet.containsKey(null), isFalse);
 
       expect(claimSet['no-such-claim'], isNull);
       expect(claimSet[''], isNull);
-      expect(claimSet[null], isNull);
     });
 
     //================================================================
@@ -283,7 +281,7 @@ void main() {
         // other exceptions before the signature verification fails
         // (i.e. can have other exceptions besides [JwtException.hashMismatch]).
 
-        <String, JwtException>{
+        <String, JwtException?>{
           // Different alg
           '{"typ":"JWT"}': JwtException.hashMismatch, // algorithm missing
           '{"alg":"none","typ":"JWT"}': JwtException.hashMismatch, // not HS256
@@ -301,8 +299,8 @@ void main() {
           '{"alg":"HS256","typ":"JWT" }': JwtException.hashMismatch,
           '{"alg":"HS256","typ":"JWT","a":"b"}': JwtException.hashMismatch,
 
-          goodHeader: null // control
-        }.forEach((header, expectedException) {
+          goodHeader: null, // control
+        }.forEach((header, Exception? expectedException) {
           final newHead = B64urlEncRfc7515.encodeUtf8(header);
           final tamperedToken = [newHead, parts[1], parts[2]].join('.');
 

@@ -15,8 +15,6 @@ import 'b64url_rfc7515.dart';
 import 'claim.dart';
 import 'exception.dart';
 
-
-
 /// Issues a HMAC SHA-256 signed JWT.
 ///
 /// Creates a JWT using the [claimSet] for the payload and signing it using
@@ -50,7 +48,7 @@ String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
 }
 
 /// Header checking function type used by [verifyJwtHS256Signature].
-typedef bool JOSEHeaderCheck(Map<Object, Object> joseHeader);
+typedef bool JOSEHeaderCheck(Map<String, dynamic?> joseHeader);
 
 /// Default JOSE Header checker.
 ///
@@ -64,16 +62,13 @@ typedef bool JOSEHeaderCheck(Map<Object, Object> joseHeader);
 /// Note: this check is more restrictive than what RFC 7519 requires, since the
 /// value of 'JWT' is only a recommendation and it is supposed to be case
 /// insensitive. See <https://tools.ietf.org/html/rfc7519#section-5.1>
-bool defaultJWTHeaderCheck(Map<Object, Object> h) {
-  if (h.containsKey('typ')) {
-    final typ = h['typ'];
-    if (typ is String) {
-      if (typ != 'JWT') return false;
-    } else {
-      return false; // reject: unexpected value type for 'typ'
-    }
+bool defaultJWTHeaderCheck(Map<String, dynamic?> h) {
+  if (!h.containsKey('typ')) {
+    return true;
   }
-  return true; // header is ok
+
+  final dynamic? typ = h['typ'];
+  return typ == 'JWT';
 }
 
 /// Verifies the signature and extracts the claim set from a JWT.
@@ -96,26 +91,31 @@ bool defaultJWTHeaderCheck(Map<Object, Object> h) {
 ///     final decClaimSet = verifyJwtHS256Signature(token, key);
 ///     print(decClaimSet);
 JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
-    {JOSEHeaderCheck headerCheck = defaultJWTHeaderCheck,
+    {JOSEHeaderCheck? headerCheck = defaultJWTHeaderCheck,
     bool defaultIatExp = true,
     Duration maxAge = JwtClaim.defaultMaxAge}) {
   try {
     final hmac = Hmac(sha256, hmacKey.codeUnits);
 
     final parts = token.split('.');
-    if (parts.length != 3) throw JwtException.invalidToken;
+    if (parts.length != 3) {
+      throw JwtException.invalidToken;
+    }
 
     // Decode header and payload
     final headerString = B64urlEncRfc7515.decodeUtf8(parts[0]);
     // Check header
-    final Object header = json.decode(headerString);
-    if (header is Map<Object, Object>) {
+    final dynamic header = json.decode(headerString);
+    if (header is Map) {
       // Perform any custom checks on the header
-      if (headerCheck != null && !headerCheck(header)) {
+      if (headerCheck != null &&
+          !headerCheck(header.cast<String, dynamic?>())) {
         throw JwtException.invalidToken;
       }
 
-      if (header['alg'] != 'HS256') throw JwtException.hashMismatch;
+      if (header['alg'] != 'HS256') {
+        throw JwtException.hashMismatch;
+      }
     } else {
       throw JwtException.headerNotJson;
     }
@@ -130,9 +130,9 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
 
     // Convert payload into a claim set
     final payloadString = B64urlEncRfc7515.decodeUtf8(parts[1]);
-    final Object payload = json.decode(payloadString);
+    final dynamic payload = json.decode(payloadString);
     if (payload is Map) {
-      return JwtClaim.fromMap(payload,
+      return JwtClaim.fromMap(payload.cast(),
           defaultIatExp: defaultIatExp, maxAge: maxAge);
     } else {
       throw JwtException.payloadNotJson; // is JSON, but not a JSON object

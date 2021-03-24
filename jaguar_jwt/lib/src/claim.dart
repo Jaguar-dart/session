@@ -73,15 +73,15 @@ class JwtClaim {
   JwtClaim(
       {this.issuer,
       this.subject,
-      this.audience: const [],
-      DateTime expiry,
-      DateTime notBefore,
-      DateTime issuedAt,
+      this.audience,
+      DateTime? expiry,
+      DateTime? notBefore,
+      DateTime? issuedAt,
       this.jwtId,
-      Map<String, Object> otherClaims,
-      Map<String, Object> payload,
+      Map<String, dynamic?>? otherClaims,
+      Map<String, dynamic?>? payload,
       bool defaultIatExp = true,
-      Duration maxAge})
+      Duration? maxAge})
       : issuedAt = issuedAt?.toUtc() ??
             ((defaultIatExp) ? DateTime.now().toUtc() : null),
         notBefore = notBefore?.toUtc(),
@@ -104,7 +104,9 @@ class JwtClaim {
     }
 
     // Treat the payload parameter as a way to provide a claim named 'pld'
-    if (payload != null) _otherClaims[_payloadClaimName] = payload;
+    if (payload != null) {
+      _otherClaims[_payloadClaimName] = payload;
+    }
   }
 
   /// Constructs a claim set from a Map of claims.
@@ -116,8 +118,8 @@ class JwtClaim {
   /// and [maxAge] control these default values.
   ///
   /// Throws [JwtException.invalidToken] if the Map is not suitable.
-  factory JwtClaim.fromMap(Map<Object, Object> data,
-      {bool defaultIatExp = true, Duration maxAge}) {
+  factory JwtClaim.fromMap(Map<dynamic, dynamic> data,
+      {bool defaultIatExp = true, Duration? maxAge}) {
     final singleStringValue = <String, String>{};
     for (var claimName in ['iss', 'sub', 'jti']) {
       if (data.containsKey(claimName)) {
@@ -156,7 +158,7 @@ class JwtClaim {
     final issuedAtOrNull = JwtDate.decode(data['iat']);
 
     // Extract all non-registered claims (including 'pld' if it is in the data)
-    final others = <String, Object>{};
+    final others = <String, dynamic>{};
     data.forEach((k, v) {
       if (k is String) {
         if (!registeredClaimNames.contains(k)) {
@@ -186,56 +188,56 @@ class JwtClaim {
   /// If this claim does not exist, the value is null.
   ///
   /// The claim name for this claim is 'iss'.
-  final String issuer;
+  final String? issuer;
 
   /// Subject Claim
   ///
   /// If this claim does not exist, the value is null.
   ///
   /// The claim name for this claim is 'sub'.
-  final String subject;
+  final String? subject;
 
   /// Audience Claim
   ///
   /// If this claim does not exist, the value is an empty list.
   ///
   /// The claim name for this claim is 'aud'.
-  final List<String> audience;
+  final List<String>? audience;
 
   /// Expiration Time Claim
   ///
   /// If this claim does not exist, the value is null.
   ///
   /// The claim name for this claim is 'exp'.
-  final DateTime expiry;
+  final DateTime? expiry;
 
   /// Not Before Claim
   ///
   /// If this claim does not exist, the value is null.
   ///
   /// The claim name for this claim is 'nbf'.
-  final DateTime notBefore;
+  final DateTime? notBefore;
 
   /// Issued At Claim
   ///
   /// If this claim does not exist, the value is null.
   ///
   /// The claim name for this claim is 'iat'.
-  final DateTime issuedAt;
+  final DateTime? issuedAt;
 
   /// JWT ID Claim
   ///
   /// If this claim does not exist, the value is null.
   ///
   /// The claim name for this claim is 'jti'.
-  final String jwtId;
+  final String? jwtId;
 
   /// All non-registered claims.
   ///
   /// This is a Map where the key is the Claim Name and the value is the claim's
   /// value. The value can be anything that can be converted into JSON.
   /// For example, a scalar value (e.g. null, int or String), a List or Map.
-  final _otherClaims = <String, Object>{};
+  final _otherClaims = <String, dynamic?>{};
 
   /// Indicates if a claim exists or not.
   ///
@@ -253,7 +255,7 @@ class JwtClaim {
         case 'sub':
           return subject != null;
         case 'aud':
-          return audience.isNotEmpty;
+          return audience != null;
         case 'exp':
           return expiry != null;
         case 'nbf':
@@ -282,7 +284,7 @@ class JwtClaim {
   /// Note: when the claim name is 'aud', this method returns null when there is
   /// no Audience Claim (unlike the [audience] member variable, which will be an
   /// empty list).
-  Object operator [](String claimName) {
+  Object? operator [](String claimName) {
     if (!registeredClaimNames.contains(claimName)) {
       // Non-registered claim
       return _otherClaims[claimName];
@@ -294,7 +296,7 @@ class JwtClaim {
         case 'sub':
           return subject;
         case 'aud':
-          return audience.isNotEmpty ? audience : null;
+          return audience;
         case 'exp':
           return expiry;
         case 'nbf':
@@ -335,11 +337,12 @@ class JwtClaim {
   }
 
   /// The payload (pld) claim.
-  Map<String, Object> get payload {
+  Map<String, dynamic?> get payload {
     final pld = _otherClaims[_payloadClaimName];
 
-    if (pld is Map<String, Object> || pld == null)
-      return pld as Map<String, Object>;
+    if (pld is Map<String, dynamic?> || pld == null) {
+      return pld as Map<String, dynamic?>;
+    }
 
     throw Exception('Invalid payload type found in the JWT token!');
   }
@@ -364,10 +367,10 @@ class JwtClaim {
   /// doing the validation. By default, there is no allowance for clock skew
   /// (i.e. it defaults to a duration of zero).
   void validate(
-      {String issuer,
-      String audience,
-      Duration allowedClockSkew,
-      DateTime currentTime}) {
+      {String? issuer,
+      String? audience,
+      Duration? allowedClockSkew,
+      DateTime? currentTime}) {
     // Ensure clock skew has a value and is never negative
     final absClockSkew = allowedClockSkew?.abs() ?? const Duration();
 
@@ -378,15 +381,17 @@ class JwtClaim {
     // No checks for subject: the application is supposed to do that
 
     // Check Audience Claim
-    if (audience is String && !this.audience.contains(audience))
+    if (audience != null && !this.audience!.contains(audience))
       throw JwtException.audienceNotAllowed;
 
     // Validate time claims (if present) are consistent
     // i.e. Expiry is not Before NotBefore, and expiry is not before IssuedAt
-    if (expiry != null && notBefore != null && !expiry.isAfter(notBefore))
+    if (expiry != null && notBefore != null && !expiry!.isAfter(notBefore!)) {
       throw JwtException.invalidToken;
-    if (expiry != null && issuedAt != null && !expiry.isAfter(issuedAt))
+    }
+    if (expiry != null && issuedAt != null && !expiry!.isAfter(issuedAt!)) {
       throw JwtException.invalidToken;
+    }
 
     // Validate time claims against the current time
     //
@@ -400,13 +405,13 @@ class JwtClaim {
     // Check Expiration Time Claim
     // Reject the token if the current time is at or after the Expiry time.
     // (At exactly Expiry is also rejected.)
-    if (expiry != null && !cTime.isBefore(expiry.add(absClockSkew)))
+    if (expiry != null && !cTime.isBefore(expiry!.add(absClockSkew)))
       throw JwtException.tokenExpired;
 
     // Check Not Before Claim
     // Reject token if the current time is before the Not Before time.
     // (At exactly Not Before is ok.)
-    if (notBefore != null && notBefore.subtract(absClockSkew).isAfter(cTime))
+    if (notBefore != null && notBefore!.subtract(absClockSkew).isAfter(cTime))
       throw JwtException.tokenNotYetAccepted;
 
     // No checks for Issued At Claim
@@ -421,17 +426,31 @@ class JwtClaim {
   }
 
   /// Converts the claim set into a Map suitable for encoding as JSON.
-  Map toJson() {
-    final body = SplayTreeMap<String, Object>();
+  Map<String, dynamic?> toJson() {
+    final body = SplayTreeMap<String, dynamic?>();
 
     // Registered claims
-    if (issuer is String) body['iss'] = issuer;
-    if (subject is String) body['sub'] = subject;
-    if (audience.isNotEmpty) body['aud'] = audience;
-    if (expiry != null) body['exp'] = JwtDate.encode(expiry);
-    if (notBefore != null) body['nbf'] = JwtDate.encode(notBefore);
-    if (issuedAt != null) body['iat'] = JwtDate.encode(issuedAt);
-    if (jwtId is String) body['jti'] = jwtId;
+    if (issuer != null) {
+      body['iss'] = issuer!;
+    }
+    if (subject != null) {
+      body['sub'] = subject!;
+    }
+    if (audience != null) {
+      body['aud'] = audience!;
+    }
+    if (expiry != null) {
+      body['exp'] = JwtDate.encode(expiry!);
+    }
+    if (notBefore != null) {
+      body['nbf'] = JwtDate.encode(notBefore!);
+    }
+    if (issuedAt != null) {
+      body['iat'] = JwtDate.encode(issuedAt!);
+    }
+    if (jwtId != null) {
+      body['jti'] = jwtId!;
+    }
 
     // Non-registered claims
     _otherClaims.forEach((k, v) {

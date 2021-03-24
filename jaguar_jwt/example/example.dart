@@ -11,20 +11,19 @@ void main() {
 
 String senderCreatesJwt() {
   // Create a claim set
-
   final claimSet = new JwtClaim(
-      issuer: 'teja',
-      subject: 'kleak',
-      audience: <String>['client1.example.com', 'client2.example.com'],
-      jwtId: _randomString(32),
-      otherClaims: <String, dynamic>{
-        'typ': 'authnresponse',
-        'pld': {'k': 'v'}
-      },
-      maxAge: const Duration(minutes: 5));
+    issuer: 'teja',
+    subject: 'kleak',
+    audience: <String>['client1.example.com', 'client2.example.com'],
+    jwtId: _randomString(32),
+    otherClaims: <String, dynamic>{
+      'typ': 'authnresponse',
+      'pld': {'k': 'v'}
+    },
+    maxAge: const Duration(minutes: 5),
+  );
 
   // Generate a JWT from the claim set
-
   final token = issueJwtHS256(claimSet, sharedSecret);
 
   print('JWT: "$token"\n');
@@ -44,10 +43,10 @@ void receiverProcessesJwt(String token) {
 
     // Use values from claim set
 
-    if (decClaimSet.subject != null) {
+    if (decClaimSet.jwtId != null) {
       print('JWT ID: "${decClaimSet.jwtId}"');
     }
-    if (decClaimSet.jwtId != null) {
+    if (decClaimSet.subject != null) {
       print('Subject: "${decClaimSet.subject}"');
     }
     if (decClaimSet.issuedAt != null) {
@@ -69,8 +68,8 @@ void receiverProcessesJwt(String token) {
 String _randomString(int length) {
   const chars =
       '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-  final rnd = new Random(new DateTime.now().millisecondsSinceEpoch);
-  final buf = new StringBuffer();
+  final rnd = Random(DateTime.now().millisecondsSinceEpoch);
+  final buf = StringBuffer();
 
   for (var x = 0; x < length; x++) {
     buf.write(chars[rnd.nextInt(chars.length)]);

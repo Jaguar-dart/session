@@ -33,7 +33,7 @@ class JwtDate {
   ///
   /// Throws [JwtException.invalidToken] if the value is not the correct type
   /// or is out of range.
-  static DateTime decode(Object value) {
+  static DateTime? decode(Object? value) {
     if (value == null) {
       // Absent
       return null;
@@ -64,8 +64,7 @@ class JwtDate {
   /// have been in the value. This is more portable, since non-conforming
   /// implementations might not expect non-integer values.
   static int encode(DateTime value) {
-    assert(value != null);
-    assert(value.isUtc); // or convert to UTC here?
-    return value.millisecondsSinceEpoch ~/ 1000; // truncating division
+    value = value.toUtc();
+    return value.millisecondsSinceEpoch ~/ 1000;
   }
 }
