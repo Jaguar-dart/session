@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.0.0
+
++ Null safety  
+
+**Breaking changes:**
++ Changed all Object to dynamic Dart type
+
 ## 2.1.6
 
 + Added support for optional Not Before (`nbf`) time claims.

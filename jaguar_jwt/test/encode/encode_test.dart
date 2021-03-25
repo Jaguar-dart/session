@@ -29,17 +29,17 @@ void main() {
           'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 
       final issuer = 'joe';
-      final exp = new DateTime.utc(2011, 03, 22, 18, 43); // 1300819380
+      final exp = DateTime.utc(2011, 03, 22, 18, 43); // 1300819380
 
       // Note: this secret is not a UTF-8 string
       final hmacKey = String.fromCharCodes(B64urlEncRfc7515.decode(k));
 
       // Create JWT
 
-      final claimSet = new JwtClaim(
+      final claimSet = JwtClaim(
           issuer: issuer,
           expiry: exp,
-          otherClaims: <String, Object>{'http://example.com/is_root': true},
+          otherClaims: <String, dynamic>{'http://example.com/is_root': true},
           defaultIatExp: false);
       final token = issueJwtHS256(claimSet, hmacKey);
 
@@ -96,11 +96,11 @@ void main() {
 
     group('Registered claims only', () {
       test('Registered claims only', () {
-        final claimSet = new JwtClaim(
+        final claimSet = JwtClaim(
             issuer: 'teja',
             subject: '1234567890',
             audience: ['admin', 'students'],
-            issuedAt: new DateTime.fromMillisecondsSinceEpoch(1481842800000,
+            issuedAt: DateTime.fromMillisecondsSinceEpoch(1481842800000,
                 isUtc: true));
         final token = issueJwtHS256(claimSet, key);
         expect(
@@ -114,7 +114,7 @@ void main() {
       test('Default iat and exp inserted', () {
         // Without defaults
 
-        final csNoDefaults = new JwtClaim(defaultIatExp: false);
+        final csNoDefaults = JwtClaim(defaultIatExp: false);
         expect(csNoDefaults.containsKey('iat'), isFalse);
         expect(csNoDefaults.issuedAt, isNull);
         expect(csNoDefaults.containsKey('exp'), isFalse);
@@ -123,9 +123,9 @@ void main() {
 
         // With defaults using the default maxAge
 
-        final beforeCreation = new DateTime.now();
-        final csWithDefaults = new JwtClaim();
-        final afterCreation = new DateTime.now();
+        final beforeCreation = DateTime.now();
+        final csWithDefaults = JwtClaim();
+        final afterCreation = DateTime.now();
 
         expect(csWithDefaults.containsKey('iat'), isTrue);
         expect(csWithDefaults.issuedAt, const TypeMatcher<DateTime>());
@@ -147,10 +147,10 @@ void main() {
 
         // With defaults and explicit maxAge
 
-        final currentTime = new DateTime.now();
+        final currentTime = DateTime.now();
         final lifespan = const Duration(minutes: 1, seconds: 11);
 
-        final cs = new JwtClaim(issuedAt: currentTime, maxAge: lifespan);
+        final cs = JwtClaim(issuedAt: currentTime, maxAge: lifespan);
 
         // Note: issuedAt is in UTC, but currentTime is in localtime
         expect(cs.issuedAt!.isAtSameMomentAs(currentTime), isTrue);
@@ -175,13 +175,13 @@ void main() {
         //
         // NOTE: this approach has been deprecated.
 
-        final claimSet = new JwtClaim(
+        final claimSet = JwtClaim(
             issuer: 'teja',
             subject: '1234567890',
             audience: ['admin', 'students'],
-            issuedAt: new DateTime.fromMillisecondsSinceEpoch(1481842800000,
-                isUtc: true),
-            payload: <String, Object>{'k': 'v'});
+            issuedAt:
+                DateTime.fromMillisecondsSinceEpoch(1481842800000, isUtc: true),
+            payload: <String, dynamic>{'k': 'v'});
         final token = issueJwtHS256(claimSet, key);
         expect(token, equals(expectedToken));
       });
@@ -190,13 +190,13 @@ void main() {
         // Create a JWT with a 'pld' claim using the "otherClaims" parameter.
         // Produces exact same JWT as using the payload parameter did.
 
-        final claimSet = new JwtClaim(
+        final claimSet = JwtClaim(
             issuer: 'teja',
             subject: '1234567890',
             audience: ['admin', 'students'],
-            issuedAt: new DateTime.fromMillisecondsSinceEpoch(1481842800000,
-                isUtc: true),
-            otherClaims: <String, Object>{
+            issuedAt:
+                DateTime.fromMillisecondsSinceEpoch(1481842800000, isUtc: true),
+            otherClaims: <String, dynamic>{
               'pld': {'k': 'v'}
             });
         final token = issueJwtHS256(claimSet, key);
@@ -221,7 +221,7 @@ void main() {
           },
         };
 
-        final source = new JwtClaim(
+        final source = JwtClaim(
             issuer: 'issuer.example.com',
             otherClaims: <String, dynamic?>{
               'nullValue': null,
@@ -286,8 +286,7 @@ void main() {
         // from the member when there is no audience: it returns null whereas
         // the member is an empty list.
 
-        expect(claimSet.audience, const TypeMatcher<List<String>>());
-        expect(claimSet.audience, isEmpty);
+        expect(claimSet.audience, isNull);
         expect(claimSet['aud'], isNull);
       });
 
@@ -307,7 +306,7 @@ void main() {
           ],
           {
             'mapClaimValue': {
-              new DateTime(2019): 'non-string key for Map inside a Map'
+              DateTime(2019): 'non-string key for Map inside a Map'
             }
           },
           [
@@ -328,14 +327,14 @@ void main() {
               }
             }
           },
-          new StringBuffer('an object with no toJson() method'),
-          [new StringBuffer('bad value in list')],
-          {'foo': new StringBuffer('bad value as value in key/value pair')},
-          {new StringBuffer('foo'): 'non-string key'}
+          StringBuffer('an object with no toJson() method'),
+          [StringBuffer('bad value in list')],
+          {'foo': StringBuffer('bad value as value in key/value pair')},
+          {StringBuffer('foo'): 'non-string key'}
         ];
 
         for (var bad in badClaimValues) {
-          final cs = new JwtClaim(otherClaims: <String, Object>{'pld': bad});
+          final cs = JwtClaim(otherClaims: <String, dynamic>{'pld': bad});
           /*
           try {
             issueJwtHS256(cs, key);

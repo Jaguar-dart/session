@@ -31,7 +31,7 @@ import 'splay.dart';
 ///       subject: 'kleak',
 ///       issuer: 'teja',
 ///       audience: <String>['example.com', 'client2.example.com'],
-///       otherClaims: <String,Object>{ 'pld': {'k': 'v'} });
+///       otherClaims: <String, dynamic>{ 'pld': {'k': 'v'} });
 ///
 ///     final token = issueJwtHS256(claimSet, key);
 ///     print(token);
@@ -132,8 +132,10 @@ class JwtClaim {
       }
     }
 
-    final audienceList = <String>[];
+    List<String>? audienceList;
     if (data.containsKey('aud')) {
+      audienceList = <String>[];
+
       // The audience claim appears in the data
       final aud = data['aud'];
       if (aud is String) {
@@ -284,7 +286,7 @@ class JwtClaim {
   /// Note: when the claim name is 'aud', this method returns null when there is
   /// no Audience Claim (unlike the [audience] member variable, which will be an
   /// empty list).
-  Object? operator [](String claimName) {
+  dynamic? operator [](String claimName) {
     if (!registeredClaimNames.contains(claimName)) {
       // Non-registered claim
       return _otherClaims[claimName];
@@ -375,17 +377,23 @@ class JwtClaim {
     final absClockSkew = allowedClockSkew?.abs() ?? const Duration();
 
     // Check Issuer Claim
-    if (issuer is String && this.issuer != issuer)
-      throw JwtException.incorrectIssuer;
+    if (issuer != null) {
+      if (issuer != this.issuer) {
+        throw JwtException.incorrectIssuer;
+      }
+    }
 
     // No checks for subject: the application is supposed to do that
 
     // Check Audience Claim
-    if (audience != null && !this.audience!.contains(audience))
-      throw JwtException.audienceNotAllowed;
+    if (audience != null) {
+      if (this.audience != null && !this.audience!.contains(audience)) {
+        throw JwtException.audienceNotAllowed;
+      }
+    }
 
     // Validate time claims (if present) are consistent
-    // i.e. Expiry is not Before NotBefore, and expiry is not before IssuedAt
+    // i.e. Expiry is not before NotBefore, and expiry is not before IssuedAt
     if (expiry != null && notBefore != null && !expiry!.isAfter(notBefore!)) {
       throw JwtException.invalidToken;
     }
@@ -405,14 +413,16 @@ class JwtClaim {
     // Check Expiration Time Claim
     // Reject the token if the current time is at or after the Expiry time.
     // (At exactly Expiry is also rejected.)
-    if (expiry != null && !cTime.isBefore(expiry!.add(absClockSkew)))
+    if (expiry != null && !cTime.isBefore(expiry!.add(absClockSkew))) {
       throw JwtException.tokenExpired;
+    }
 
     // Check Not Before Claim
     // Reject token if the current time is before the Not Before time.
     // (At exactly Not Before is ok.)
-    if (notBefore != null && notBefore!.subtract(absClockSkew).isAfter(cTime))
+    if (notBefore != null && notBefore!.subtract(absClockSkew).isAfter(cTime)) {
       throw JwtException.tokenNotYetAccepted;
+    }
 
     // No checks for Issued At Claim
     //

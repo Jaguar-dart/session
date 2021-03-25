@@ -17,7 +17,7 @@ a JSON Web Signature (JWS).
 
 ```dart
   final key = 's3cr3t';
-  final claimSet = new JwtClaim(
+  final claimSet = JwtClaim(
       subject: 'kleak',
       issuer: 'teja',
       audience: <String>['audience1.example.com', 'audience2.example.com'],

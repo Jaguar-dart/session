@@ -11,7 +11,7 @@ void main() {
 
 String senderCreatesJwt() {
   // Create a claim set
-  final claimSet = new JwtClaim(
+  final claimSet = JwtClaim(
     issuer: 'teja',
     subject: 'kleak',
     audience: <String>['client1.example.com', 'client2.example.com'],

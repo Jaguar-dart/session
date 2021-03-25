@@ -13,12 +13,12 @@
 /// To generate a JWT, create a `JwtClaim` and use [issueJwtHS256]:
 ///
 /// ```
-/// final claimSet = new JwtClaim(
+/// final claimSet = JwtClaim(
 ///      issuer: 'issuer.example.com',
 ///      subject: 'BD4A3FC4-9861-4171-8640-20C3004BD059',
 ///      audience: <String>['client1.example.com', 'client2.example.com'],
 ///      jwtId: _randomString(32),
-///      otherClaims: <String, Object>{
+///      otherClaims: <String, dynamic>{
 ///        'typ': 'authnresponse',
 ///        'pld': {'k': 'v'}
 ///      },

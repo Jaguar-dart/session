@@ -33,7 +33,7 @@ void main() {
           'aKtMN3Yj0iPS4hcgUuTwjAzZr1Z9CAow';
 
       final issuer = 'joe';
-      final exp = new DateTime.utc(2011, 03, 22, 18, 43); // 1300819380
+      final exp = DateTime.utc(2011, 03, 22, 18, 43); // 1300819380
 
       // Note: this secret is not a UTF-8 string
       final hmacKey = String.fromCharCodes(B64urlEncRfc7515.decode(k));
@@ -79,7 +79,7 @@ void main() {
         'token has too many parts': '1111.2222.3333.4444',
         'encoded payload is empty string':
             'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..'
-            'iE8S5laiOzOYJxr411Fw2HrI9I-n2F8MREyuXFwqCDo',
+                'iE8S5laiOzOYJxr411Fw2HrI9I-n2F8MREyuXFwqCDo',
       };
       assert(badTokens.isNotEmpty);
 
@@ -110,7 +110,7 @@ void main() {
 
       expect(claimSet.issuer, isNull);
       expect(claimSet.subject, isNull);
-      expect(claimSet.audience, isEmpty);
+      expect(claimSet.audience, isNull);
       expect(claimSet.expiry, isNull);
       expect(claimSet.notBefore, isNull);
       expect(claimSet.issuedAt, isNull);
@@ -118,8 +118,7 @@ void main() {
 
       // There are no non-registered claims too
 
-      final allClaimNames = new List<String>.from(
-          claimSet.claimNames(includeRegisteredClaims: true));
+      final allClaimNames = claimSet.claimNames(includeRegisteredClaims: true);
 
       expect(allClaimNames.length, isZero);
 
@@ -186,9 +185,9 @@ void main() {
       final subject =
           'https://example.com!http://localhost:10000!000abcdefghijklmnopqrstuvwxyz';
       final audience = 'http://audience.example.com';
-      final expiry = new DateTime.utc(2019, 1, 15, 2, 27, 19);
-      final notBefore = new DateTime.utc(2019, 1, 15, 2, 25, 19);
-      final issuedAt = new DateTime.utc(2019, 1, 15, 2, 25, 19);
+      final expiry = DateTime.utc(2019, 1, 15, 2, 27, 19);
+      final notBefore = DateTime.utc(2019, 1, 15, 2, 25, 19);
+      final issuedAt = DateTime.utc(2019, 1, 15, 2, 25, 19);
       final jwtId = 'R4k4dsWcmS9pbpSmGHwCCeoh9RjGLfIg';
 
       final secret = 's3cr3t';
@@ -235,13 +234,13 @@ void main() {
     //================================================================
 
     group('Signature', () {
-      final claimSet = new JwtClaim(
+      final claimSet = JwtClaim(
           subject: 'kleak',
           issuer: 'issuer.example.com',
           audience: <String>[
             'audience.example.com'
           ],
-          otherClaims: <String, Object>{
+          otherClaims: <String, dynamic>{
             'pld': {'foo': 'bar'}
           });
 

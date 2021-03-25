@@ -23,8 +23,8 @@ String prettify(JwtClaim claim) {
 
 const String _toStringIndent = '  ';
 
-void _toStringDump(Object? value, StringBuffer buf, [int indent = 0]) {
-  if (value is Iterable<Object>) {
+void _toStringDump(dynamic? value, StringBuffer buf, [int indent = 0]) {
+  if (value is Iterable<dynamic>) {
     // Dump an Iterable
     buf.write('[\n');
     var hadPrev = false;
